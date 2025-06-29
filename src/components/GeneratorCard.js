@@ -62,9 +62,9 @@ export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
             <h3 className="text-lg font-medium text-gray-900 truncate">
               {genset.name}
             </h3>
-            {(genset.model || genset.serialNumber) && (
+            {genset.model && (
               <p className="text-sm text-gray-500 truncate">
-                {[genset.model, genset.serialNumber].filter(Boolean).join(' • ')}
+                {genset.model}
               </p>
             )}
             <p className="text-sm text-gray-500">

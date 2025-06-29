@@ -92,7 +92,7 @@ export async function POST(request) {
     
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: 'Serial number already exists' },
+        { error: 'Duplicate value detected' },
         { status: 409 }
       );
     }
@@ -208,7 +208,7 @@ export async function PATCH(request) {
     
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: 'Serial number already exists' },
+        { error: 'Duplicate value detected' },
         { status: 409 }
       );
     }

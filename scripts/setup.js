@@ -57,7 +57,7 @@ async function setupDatabase() {
     }
 
     // Create sample generators
-    const existingGenset = await Genset.findOne({ serialNumber: 'GEN001' });
+    const existingGenset = await Genset.findOne({ name: 'Generator 1' });
     if (!existingGenset) {
       const admin = await User.findOne({ role: 'admin' });
       
@@ -65,7 +65,6 @@ async function setupDatabase() {
         {
           name: 'Generator 1',
           model: 'CAT 3516B',
-          serialNumber: 'GEN001',
           capacity: 2000,
           capacityUnit: 'KW',
           fuelType: 'Diesel',
@@ -75,7 +74,6 @@ async function setupDatabase() {
         {
           name: 'Generator 2',
           model: 'Cummins QSK60',
-          serialNumber: 'GEN002',
           capacity: 1800,
           capacityUnit: 'KW',
           fuelType: 'Diesel',

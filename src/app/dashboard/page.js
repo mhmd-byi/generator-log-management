@@ -1210,7 +1210,7 @@ export default function DashboardPage() {
                                     {log.genset?.name}
                                   </div>
                                   <div className="text-sm text-gray-500">
-                                    {log.genset?.model} • {log.genset?.serialNumber}
+                                    {log.genset?.model}
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -1564,9 +1564,9 @@ export default function DashboardPage() {
                     {modalType === 'venue' && deletingItem.name}
                     {modalType === 'user' && deletingItem.username}
                   </p>
-                  {modalType === 'generator' && (
+                  {modalType === 'generator' && deletingItem.model && (
                     <p className="text-sm text-gray-600">
-                      {deletingItem.model} • {deletingItem.serialNumber}
+                      {deletingItem.model}
                     </p>
                   )}
                   {modalType === 'venue' && deletingItem.description && (

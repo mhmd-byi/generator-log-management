@@ -51,7 +51,7 @@ export async function GET(request) {
     }
 
     const logs = await Log.find(query)
-      .populate('genset', 'name model serialNumber')
+              .populate('genset', 'name model')
       .populate('venue', 'name')
       .populate('user', 'username email')
       .sort({ timestamp: -1 })

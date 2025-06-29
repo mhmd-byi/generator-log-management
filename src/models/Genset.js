@@ -13,14 +13,6 @@ const gensetSchema = new mongoose.Schema({
     trim: true,
     maxlength: 100
   },
-  serialNumber: {
-    type: String,
-    required: false,
-    unique: true,
-    sparse: true, // Allow multiple null values
-    trim: true,
-    maxlength: 50
-  },
   capacity: {
     type: Number,
     required: true,
