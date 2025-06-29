@@ -49,12 +49,12 @@ export default function DashboardPage() {
     contactPerson: { name: '', phone: '', email: '' }
   });
   
-  const [generatorForm, setGeneratorForm] = useState({
+  const [generatorForm, setGeneratorForm] = useState([{
     name: '',
     capacity: '',
     capacityUnit: 'KW',
     venueId: ''
-  });
+  }]);
   
   const [userForm, setUserForm] = useState({
     username: '',
@@ -63,6 +63,28 @@ export default function DashboardPage() {
     role: 'user',
     assignedVenue: ''
   });
+
+  // Generator form management functions
+  const addGeneratorForm = () => {
+    setGeneratorForm(prev => [...prev, {
+      name: '',
+      capacity: '',
+      capacityUnit: 'KW',
+      venueId: ''
+    }]);
+  };
+
+  const removeGeneratorForm = (index) => {
+    if (generatorForm.length > 1) {
+      setGeneratorForm(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateGeneratorForm = (index, field, value) => {
+    setGeneratorForm(prev => prev.map((form, i) => 
+      i === index ? { ...form, [field]: value } : form
+    ));
+  };
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -212,12 +234,12 @@ export default function DashboardPage() {
         contactPerson: item.contactPerson || { name: '', phone: '', email: '' }
       });
     } else if (type === 'generator') {
-      setGeneratorForm({
+      setGeneratorForm([{
         name: item.name || '',
         capacity: item.capacity || '',
         capacityUnit: item.capacityUnit || 'KW',
         venueId: item.venue?._id || ''
-      });
+      }]);
     } else if (type === 'user') {
       setUserForm({
         username: item.username || '',
@@ -296,7 +318,7 @@ export default function DashboardPage() {
     setError('');
     // Reset forms
     setVenueForm({ name: '', description: '', contactPerson: { name: '', phone: '', email: '' } });
-    setGeneratorForm({ name: '', capacity: '', capacityUnit: 'KW', venueId: '' });
+    setGeneratorForm([{ name: '', capacity: '', capacityUnit: 'KW', venueId: '' }]);
     setUserForm({ username: '', email: '', password: '', role: 'user', assignedVenue: '' });
   };
 
@@ -319,9 +341,12 @@ export default function DashboardPage() {
           break;
         case 'generator':
           endpoint = '/api/admin/gensets';
-          payload = showEditModal 
-            ? { gensetId: editingItem._id, ...generatorForm }
-            : generatorForm;
+          if (showEditModal) {
+            payload = { gensetId: editingItem._id, ...generatorForm[0] };
+          } else {
+            // For adding new generators, we'll handle multiple generators
+            payload = generatorForm[0]; // Start with the first one
+          }
           break;
         case 'user':
           endpoint = '/api/admin/users';
@@ -331,22 +356,59 @@ export default function DashboardPage() {
           break;
       }
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // Handle multiple generators for adding new ones
+      if (modalType === 'generator' && !showEditModal && generatorForm.length > 1) {
+        let successCount = 0;
+        let errorMessages = [];
 
-      const data = await response.json();
+        for (const [index, generator] of generatorForm.entries()) {
+          try {
+            const response = await fetch(endpoint, {
+              method,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(generator),
+            });
 
-      if (response.ok) {
-        // Success - refresh data and close modal
-        await loadDashboardData();
-        closeModal();
+            const data = await response.json();
+
+            if (response.ok) {
+              successCount++;
+            } else {
+              errorMessages.push(`Generator ${index + 1}: ${data.error || 'Failed to save'}`);
+            }
+          } catch (error) {
+            errorMessages.push(`Generator ${index + 1}: Network error`);
+          }
+        }
+
+        if (errorMessages.length > 0) {
+          setError(`${successCount} generator(s) saved successfully. Errors: ${errorMessages.join(', ')}`);
+        } else {
+          // All successful - refresh data and close modal
+          await loadDashboardData();
+          closeModal();
+        }
       } else {
-        setError(data.error || 'Failed to save item');
+        // Handle single item (edit mode or single generator)
+        const response = await fetch(endpoint, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Success - refresh data and close modal
+          await loadDashboardData();
+          closeModal();
+        } else {
+          setError(data.error || 'Failed to save item');
+        }
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -1004,56 +1066,99 @@ export default function DashboardPage() {
 
                 {/* Generator Form */}
                 {modalType === 'generator' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={generatorForm.name}
-                        onChange={(e) => setGeneratorForm({...generatorForm, name: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Capacity *</label>
-                        <input
-                          type="number"
-                          required
-                          value={generatorForm.capacity}
-                          onChange={(e) => setGeneratorForm({...generatorForm, capacity: e.target.value})}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                  <div className="space-y-6">
+                    {generatorForm.map((generator, index) => (
+                      <div key={index} className={`${index > 0 ? 'border-t pt-6' : ''}`}>
+                        {generatorForm.length > 1 && (
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-sm font-medium text-gray-900">Generator {index + 1}</h4>
+                            {generatorForm.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeGeneratorForm(index)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={generator.name}
+                              onChange={(e) => updateGeneratorForm(index, 'name', e.target.value)}
+                              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Capacity *</label>
+                              <input
+                                type="number"
+                                required
+                                value={generator.capacity}
+                                onChange={(e) => updateGeneratorForm(index, 'capacity', e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Unit</label>
+                              <select
+                                value={generator.capacityUnit}
+                                onChange={(e) => updateGeneratorForm(index, 'capacityUnit', e.target.value)}
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="KW">KW</option>
+                                <option value="MW">MW</option>
+                                <option value="HP">HP</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Venue *</label>
+                            <select
+                              required
+                              value={generator.venueId}
+                              onChange={(e) => updateGeneratorForm(index, 'venueId', e.target.value)}
+                              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="">Select Venue</option>
+                              {venues.map((venue) => (
+                                <option key={venue._id} value={venue._id}>{venue.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Unit</label>
-                        <select
-                          value={generatorForm.capacityUnit}
-                          onChange={(e) => setGeneratorForm({...generatorForm, capacityUnit: e.target.value})}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    ))}
+                    
+                    {!showEditModal && (
+                      <div className="border-t pt-4">
+                        <button
+                          type="button"
+                          onClick={addGeneratorForm}
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
-                          <option value="KW">KW</option>
-                          <option value="MW">MW</option>
-                          <option value="HP">HP</option>
-                        </select>
+                          <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Another Generator
+                        </button>
+                        {generatorForm.length > 1 && (
+                          <p className="mt-2 text-sm text-gray-500">
+                            Adding {generatorForm.length} generators. Each will be saved individually.
+                          </p>
+                        )}
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Venue *</label>
-                      <select
-                        required
-                        value={generatorForm.venueId}
-                        onChange={(e) => setGeneratorForm({...generatorForm, venueId: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Select Venue</option>
-                        {venues.map((venue) => (
-                          <option key={venue._id} value={venue._id}>{venue.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
+                    )}
+                  </div>
                 )}
 
                 {/* User Form */}
