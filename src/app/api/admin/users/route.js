@@ -11,7 +11,7 @@ export async function GET(request) {
 
     await dbConnect();
     const users = await User.find({ isActive: true })
-      .populate('assignedVenue', 'name location')
+      .populate('assignedVenue', 'name')
       .sort({ createdAt: -1 });
 
     return NextResponse.json({ users });
@@ -61,7 +61,7 @@ export async function POST(request) {
     });
 
     await newUser.save();
-    await newUser.populate('assignedVenue', 'name location');
+    await newUser.populate('assignedVenue', 'name');
 
     return NextResponse.json({
       message: 'User created successfully',
@@ -130,7 +130,7 @@ export async function PATCH(request) {
       userId,
       updateData,
       { new: true }
-    ).populate('assignedVenue', 'name location');
+    ).populate('assignedVenue', 'name');
 
     if (!updatedUser) {
       return NextResponse.json(
@@ -154,6 +154,56 @@ export async function PATCH(request) {
       );
     }
 
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const user = await requireAdmin(request);
+    if (user instanceof NextResponse) return user;
+
+    await dbConnect();
+    const data = await request.json();
+    const { userId } = data;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Prevent admin from deleting themselves
+    if (userId === user._id.toString()) {
+      return NextResponse.json(
+        { error: 'Cannot delete your own account' },
+        { status: 400 }
+      );
+    }
+
+    // Soft delete by setting isActive to false
+    const deletedUser = await User.findByIdAndUpdate(
+      userId,
+      { isActive: false },
+      { new: true }
+    );
+
+    if (!deletedUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

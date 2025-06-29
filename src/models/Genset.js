@@ -9,14 +9,15 @@ const gensetSchema = new mongoose.Schema({
   },
   model: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
     maxlength: 100
   },
   serialNumber: {
     type: String,
-    required: true,
+    required: false,
     unique: true,
+    sparse: true, // Allow multiple null values
     trim: true,
     maxlength: 50
   },
@@ -27,18 +28,18 @@ const gensetSchema = new mongoose.Schema({
   },
   capacityUnit: {
     type: String,
-    enum: ['KW', 'KVA'],
+    enum: ['KW', 'MW', 'HP'],
     default: 'KW'
   },
   fuelType: {
     type: String,
-    enum: ['Diesel', 'Gas', 'Petrol', 'Hybrid'],
-    default: 'Diesel'
+    enum: ['Diesel', 'Natural Gas', 'Gasoline', 'Propane'],
+    required: false
   },
   venue: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Venue',
-    required: true
+    required: false
   },
   status: {
     type: String,
@@ -61,7 +62,24 @@ const gensetSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  }
+  },
+  venueHistory: [{
+    venue: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Venue'
+    },
+    venueName: String,
+    attachedAt: {
+      type: Date,
+      default: Date.now
+    },
+    detachedAt: Date,
+    detachedReason: {
+      type: String,
+      enum: ['VENUE_DELETED', 'MANUAL_REASSIGNMENT', 'OTHER'],
+      default: 'OTHER'
+    }
+  }]
 }, {
   timestamps: true
 });
@@ -70,6 +88,24 @@ const gensetSchema = new mongoose.Schema({
 gensetSchema.pre('save', function(next) {
   if (this.isModified('status')) {
     this.lastStatusChange = new Date();
+  }
+  next();
+});
+
+// Track venue changes in history
+gensetSchema.pre('save', function(next) {
+  if (this.isModified('venue') && !this.isNew) {
+    // If venue is being changed and this isn't a new document
+    const previousVenueHistory = this.venueHistory || [];
+    
+    // Find the last entry that doesn't have a detachedAt date
+    const lastActiveEntry = previousVenueHistory.find(entry => !entry.detachedAt);
+    
+    if (lastActiveEntry) {
+      // Mark the previous venue attachment as detached
+      lastActiveEntry.detachedAt = new Date();
+      lastActiveEntry.detachedReason = 'MANUAL_REASSIGNMENT';
+    }
   }
   next();
 });

@@ -9,7 +9,7 @@ const venueSchema = new mongoose.Schema({
   },
   location: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
     maxlength: 200
   },

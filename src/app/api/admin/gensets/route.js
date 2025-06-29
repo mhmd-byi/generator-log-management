@@ -12,7 +12,7 @@ export async function GET(request) {
 
     await dbConnect();
     const gensets = await Genset.find({ isActive: true })
-      .populate('venue', 'name location')
+      .populate('venue', 'name')
       .populate('createdBy', 'username email')
       .populate('lastStatusChangedBy', 'username')
       .sort({ createdAt: -1 });
@@ -35,11 +35,11 @@ export async function POST(request) {
     await dbConnect();
     const data = await request.json();
 
-    const { name, model, serialNumber, capacity, capacityUnit, fuelType, venueId } = data;
+    const { name, capacity, capacityUnit, venueId } = data;
 
-    if (!name || !model || !serialNumber || !capacity || !venueId) {
+    if (!name || !capacity || !venueId) {
       return NextResponse.json(
-        { error: 'All required fields must be provided' },
+        { error: 'Name, capacity, and venue are required' },
         { status: 400 }
       );
     }
@@ -55,17 +55,20 @@ export async function POST(request) {
 
     const genset = new Genset({
       name,
-      model,
-      serialNumber,
       capacity,
       capacityUnit,
-      fuelType,
       venue: venueId,
-      createdBy: user._id
+      createdBy: user._id,
+      venueHistory: [{
+        venue: venueId,
+        venueName: venue.name,
+        attachedAt: new Date(),
+        detachedReason: 'OTHER'
+      }]
     });
 
     await genset.save();
-    await genset.populate('venue', 'name location');
+    await genset.populate('venue', 'name');
     await genset.populate('createdBy', 'username email');
 
     // Create log entry
@@ -84,6 +87,8 @@ export async function POST(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Create genset error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     
     if (error.code === 11000) {
       return NextResponse.json(
@@ -92,8 +97,13 @@ export async function POST(request) {
       );
     }
 
+    // Return more specific error information in development
+    const isDev = process.env.NODE_ENV === 'development';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: isDev ? error.message : 'Internal server error',
+        details: isDev ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
@@ -106,7 +116,7 @@ export async function PATCH(request) {
 
     await dbConnect();
     const data = await request.json();
-    const { gensetId, name, model, serialNumber, capacity, capacityUnit, fuelType, venueId } = data;
+    const { gensetId, name, capacity, capacityUnit, venueId } = data;
 
     if (!gensetId) {
       return NextResponse.json(
@@ -115,9 +125,9 @@ export async function PATCH(request) {
       );
     }
 
-    if (!name || !model || !serialNumber || !capacity || !venueId) {
+    if (!name || !capacity || !venueId) {
       return NextResponse.json(
-        { error: 'All required fields must be provided' },
+        { error: 'Name, capacity, and venue are required' },
         { status: 400 }
       );
     }
@@ -131,12 +141,44 @@ export async function PATCH(request) {
       );
     }
 
+    // Get the current genset to check if venue is changing
+    const currentGenset = await Genset.findById(gensetId);
+    if (!currentGenset) {
+      return NextResponse.json(
+        { error: 'Generator not found' },
+        { status: 404 }
+      );
+    }
+
+    const updateData = { name, capacity, capacityUnit, venue: venueId };
+
+    // If venue is changing, update venue history
+    if (currentGenset.venue && currentGenset.venue.toString() !== venueId) {
+      // Mark previous venue as detached
+      const venueHistory = currentGenset.venueHistory || [];
+      const lastActiveEntry = venueHistory.find(entry => !entry.detachedAt);
+      if (lastActiveEntry) {
+        lastActiveEntry.detachedAt = new Date();
+        lastActiveEntry.detachedReason = 'MANUAL_REASSIGNMENT';
+      }
+
+      // Add new venue to history
+      venueHistory.push({
+        venue: venueId,
+        venueName: venue.name,
+        attachedAt: new Date(),
+        detachedReason: 'OTHER'
+      });
+
+      updateData.venueHistory = venueHistory;
+    }
+
     const updatedGenset = await Genset.findByIdAndUpdate(
       gensetId,
-      { name, model, serialNumber, capacity, capacityUnit, fuelType, venue: venueId },
+      updateData,
       { new: true }
     )
-    .populate('venue', 'name location')
+    .populate('venue', 'name')
     .populate('createdBy', 'username email')
     .populate('lastStatusChangedBy', 'username');
 
@@ -171,6 +213,60 @@ export async function PATCH(request) {
       );
     }
 
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const user = await requireAdmin(request);
+    if (user instanceof NextResponse) return user;
+
+    await dbConnect();
+    const data = await request.json();
+    const { gensetId } = data;
+
+    if (!gensetId) {
+      return NextResponse.json(
+        { error: 'Generator ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get the genset before deletion for logging
+    const genset = await Genset.findById(gensetId).populate('venue');
+    if (!genset) {
+      return NextResponse.json(
+        { error: 'Generator not found' },
+        { status: 404 }
+      );
+    }
+
+    // Soft delete by setting isActive to false
+    const deletedGenset = await Genset.findByIdAndUpdate(
+      gensetId,
+      { isActive: false },
+      { new: true }
+    );
+
+    // Create log entry
+    await Log.create({
+      genset: genset._id,
+      venue: genset.venue._id,
+      user: user._id,
+      action: 'DELETED',
+      previousStatus: genset.status,
+      notes: 'Generator deleted'
+    });
+
+    return NextResponse.json({
+      message: 'Generator deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete genset error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

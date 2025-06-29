@@ -20,25 +20,23 @@ export default function DashboardPage() {
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'venue', 'generator', 'user'
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(null);
   
   // Form states
   const [venueForm, setVenueForm] = useState({
     name: '',
-    location: '',
     description: '',
     contactPerson: { name: '', phone: '', email: '' }
   });
   
   const [generatorForm, setGeneratorForm] = useState({
     name: '',
-    model: '',
-    serialNumber: '',
     capacity: '',
     capacityUnit: 'KW',
-    fuelType: 'Diesel',
     venueId: ''
   });
   
@@ -151,18 +149,14 @@ export default function DashboardPage() {
     if (type === 'venue') {
       setVenueForm({
         name: item.name || '',
-        location: item.location || '',
         description: item.description || '',
         contactPerson: item.contactPerson || { name: '', phone: '', email: '' }
       });
     } else if (type === 'generator') {
       setGeneratorForm({
         name: item.name || '',
-        model: item.model || '',
-        serialNumber: item.serialNumber || '',
         capacity: item.capacity || '',
         capacityUnit: item.capacityUnit || 'KW',
-        fuelType: item.fuelType || 'Diesel',
         venueId: item.venue?._id || ''
       });
     } else if (type === 'user') {
@@ -176,14 +170,74 @@ export default function DashboardPage() {
     }
   };
 
+  const openDeleteModal = (type, item) => {
+    setModalType(type);
+    setDeletingItem(item);
+    setShowDeleteModal(true);
+    setError('');
+  };
+
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    
+    setSubmitting(true);
+    setError('');
+
+    try {
+      let endpoint = '';
+      let payload = {};
+
+      switch (modalType) {
+        case 'venue':
+          endpoint = '/api/admin/venues';
+          payload = { venueId: deletingItem._id };
+          break;
+        case 'generator':
+          endpoint = '/api/admin/gensets';
+          payload = { gensetId: deletingItem._id };
+          break;
+        case 'user':
+          endpoint = '/api/admin/users';
+          payload = { userId: deletingItem._id };
+          break;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Success - refresh data and close modal
+        await loadDashboardData();
+        closeModal();
+      } else {
+        setError(data.error || 'Failed to delete item');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      setError('Failed to delete item');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const closeModal = () => {
     setShowAddModal(false);
     setShowEditModal(false);
+    setShowDeleteModal(false);
     setModalType('');
     setEditingItem(null);
+    setDeletingItem(null);
+    setError('');
     // Reset forms
-    setVenueForm({ name: '', location: '', description: '', contactPerson: { name: '', phone: '', email: '' } });
-    setGeneratorForm({ name: '', model: '', serialNumber: '', capacity: '', capacityUnit: 'KW', fuelType: 'Diesel', venueId: '' });
+    setVenueForm({ name: '', description: '', contactPerson: { name: '', phone: '', email: '' } });
+    setGeneratorForm({ name: '', capacity: '', capacityUnit: 'KW', venueId: '' });
     setUserForm({ username: '', email: '', password: '', role: 'user', assignedVenue: '' });
   };
 
@@ -366,14 +420,24 @@ export default function DashboardPage() {
                             canToggle={true}
                           />
                           {user?.role === 'admin' && (
-                            <button
-                              onClick={() => openEditModal('generator', genset)}
-                              className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
-                            >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
+                            <div className="absolute top-2 right-2 flex space-x-1">
+                              <button
+                                onClick={() => openEditModal('generator', genset)}
+                                className="p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => openDeleteModal('generator', genset)}
+                                className="p-1 bg-white rounded-full shadow-md hover:bg-red-50 text-gray-600 hover:text-red-800"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -408,7 +472,6 @@ export default function DashboardPage() {
                         <div key={venue._id} className="relative bg-white overflow-hidden shadow rounded-lg">
                           <div className="p-6">
                             <h3 className="text-lg font-medium text-gray-900">{venue.name}</h3>
-                            <p className="text-sm text-gray-500 mt-1">{venue.location}</p>
                             {venue.description && (
                               <p className="text-sm text-gray-600 mt-2">{venue.description}</p>
                             )}
@@ -423,14 +486,24 @@ export default function DashboardPage() {
                               Created: {new Date(venue.createdAt).toLocaleDateString()}
                             </div>
                           </div>
-                          <button
-                            onClick={() => openEditModal('venue', venue)}
-                            className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
+                          <div className="absolute top-2 right-2 flex space-x-1">
+                            <button
+                              onClick={() => openEditModal('venue', venue)}
+                              className="p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal('venue', venue)}
+                              className="p-1 bg-white rounded-full shadow-md hover:bg-red-50 text-gray-600 hover:text-red-800"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -482,14 +555,24 @@ export default function DashboardPage() {
                                   </p>
                                 )}
                               </div>
-                              <button
-                                onClick={() => openEditModal('user', userData)}
-                                className="ml-4 p-1 bg-gray-50 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-800"
-                              >
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                              <div className="ml-4 flex space-x-1">
+                                <button
+                                  onClick={() => openEditModal('user', userData)}
+                                  className="p-1 bg-gray-50 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-800"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => openDeleteModal('user', userData)}
+                                  className="p-1 bg-gray-50 rounded-full hover:bg-red-100 text-gray-600 hover:text-red-800"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -560,7 +643,6 @@ export default function DashboardPage() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="text-sm text-gray-900">{log.venue?.name}</div>
-                                  <div className="text-sm text-gray-500">{log.venue?.location}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -657,16 +739,6 @@ export default function DashboardPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Location *</label>
-                      <input
-                        type="text"
-                        required
-                        value={venueForm.location}
-                        onChange={(e) => setVenueForm({...venueForm, location: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
                       <label className="block text-sm font-medium text-gray-700">Description</label>
                       <textarea
                         value={venueForm.description}
@@ -717,26 +789,6 @@ export default function DashboardPage() {
                         className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Model *</label>
-                      <input
-                        type="text"
-                        required
-                        value={generatorForm.model}
-                        onChange={(e) => setGeneratorForm({...generatorForm, model: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Serial Number *</label>
-                      <input
-                        type="text"
-                        required
-                        value={generatorForm.serialNumber}
-                        onChange={(e) => setGeneratorForm({...generatorForm, serialNumber: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Capacity *</label>
@@ -760,19 +812,6 @@ export default function DashboardPage() {
                           <option value="HP">HP</option>
                         </select>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Fuel Type</label>
-                      <select
-                        value={generatorForm.fuelType}
-                        onChange={(e) => setGeneratorForm({...generatorForm, fuelType: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="Diesel">Diesel</option>
-                        <option value="Natural Gas">Natural Gas</option>
-                        <option value="Gasoline">Gasoline</option>
-                        <option value="Propane">Propane</option>
-                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Venue *</label>
@@ -870,6 +909,83 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingItem && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirm Delete
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {error && (
+                <div className="mb-4 rounded-md bg-red-50 p-3">
+                  <div className="text-sm text-red-700">{error}</div>
+                </div>
+              )}
+
+              <div className="text-sm text-gray-600 mb-6">
+                <p className="mb-2">
+                  Are you sure you want to delete this {modalType === 'generator' ? 'generator' : modalType}?
+                </p>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <p className="font-medium text-gray-900">
+                    {modalType === 'generator' && deletingItem.name}
+                    {modalType === 'venue' && deletingItem.name}
+                    {modalType === 'user' && deletingItem.username}
+                  </p>
+                  {modalType === 'generator' && (
+                    <p className="text-sm text-gray-600">
+                      {deletingItem.model} • {deletingItem.serialNumber}
+                    </p>
+                  )}
+                  {modalType === 'venue' && deletingItem.description && (
+                    <p className="text-sm text-gray-600">
+                      {deletingItem.description}
+                    </p>
+                  )}
+                  {modalType === 'user' && (
+                    <p className="text-sm text-gray-600">
+                      {deletingItem.email}
+                    </p>
+                  )}
+                </div>
+                <p className="mt-3 text-red-600 font-medium">
+                  This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
