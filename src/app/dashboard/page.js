@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import GeneratorCard from '../../components/GeneratorCard';
 import StatsDashboard from '../../components/dashboard/StatsDashboard';
+import * as XLSX from 'xlsx';
 
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -37,10 +38,19 @@ export default function DashboardPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'venue', 'generator', 'user'
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deletingItem, setDeletingItem] = useState(null);
+  
+  // Bulk upload states
+  const [uploadFile, setUploadFile] = useState(null);
+  const [parsedData, setParsedData] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState(''); // 'parsing', 'uploading', 'complete', 'error'
+  const [uploadErrors, setUploadErrors] = useState([]);
+  const [uploadResults, setUploadResults] = useState({ success: 0, failed: 0 });
   
   // Form states
   const [venueForm, setVenueForm] = useState({
@@ -84,6 +94,165 @@ export default function DashboardPage() {
     setGeneratorForm(prev => prev.map((form, i) => 
       i === index ? { ...form, [field]: value } : form
     ));
+  };
+
+  // Bulk upload functions
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setUploadFile(file);
+    setUploadStatus('parsing');
+    setUploadErrors([]);
+    setParsedData([]);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        // Validate and transform data
+        const validatedData = [];
+        const errors = [];
+
+        jsonData.forEach((row, index) => {
+          const rowNumber = index + 2; // Excel row number (accounting for header)
+          const errors_in_row = [];
+
+          // Validate required fields
+          if (!row.Name || typeof row.Name !== 'string' || row.Name.trim() === '') {
+            errors_in_row.push('Name is required');
+          }
+          if (!row.Capacity || isNaN(Number(row.Capacity))) {
+            errors_in_row.push('Capacity must be a valid number');
+          }
+          if (!row.Venue || typeof row.Venue !== 'string' || row.Venue.trim() === '') {
+            errors_in_row.push('Venue is required');
+          }
+
+          // Find venue by name
+          const venue = venues.find(v => v.name.toLowerCase().trim() === String(row.Venue).toLowerCase().trim());
+          if (row.Venue && !venue) {
+            errors_in_row.push(`Venue "${row.Venue}" not found`);
+          }
+
+          if (errors_in_row.length > 0) {
+            errors.push({
+              row: rowNumber,
+              errors: errors_in_row,
+              data: row
+            });
+          } else {
+            validatedData.push({
+              name: String(row.Name).trim(),
+              capacity: Number(row.Capacity),
+              capacityUnit: row.Unit && ['KW', 'MW', 'HP'].includes(String(row.Unit).toUpperCase()) 
+                ? String(row.Unit).toUpperCase() 
+                : 'KW',
+              venueId: venue._id,
+              venueName: venue.name
+            });
+          }
+        });
+
+        setParsedData(validatedData);
+        setUploadErrors(errors);
+        setUploadStatus(errors.length > 0 ? 'error' : 'ready');
+      } catch (error) {
+        console.error('Error parsing Excel file:', error);
+        setUploadStatus('error');
+        setUploadErrors([{ row: 0, errors: ['Invalid Excel file format'], data: {} }]);
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const processBulkUpload = async () => {
+    if (parsedData.length === 0) return;
+
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+    
+    let successCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    for (let i = 0; i < parsedData.length; i++) {
+      try {
+        const response = await fetch('/api/admin/gensets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(parsedData[i]),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failedCount++;
+          errors.push(`Row ${i + 1}: ${data.error || 'Failed to save'}`);
+        }
+      } catch (error) {
+        failedCount++;
+        errors.push(`Row ${i + 1}: Network error`);
+      }
+
+      // Update progress
+      setUploadProgress(Math.round(((i + 1) / parsedData.length) * 100));
+    }
+
+    setUploadResults({ success: successCount, failed: failedCount });
+    setUploadErrors(errors.map((error, index) => ({ row: index + 1, errors: [error], data: {} })));
+    setUploadStatus('complete');
+
+    // Refresh data if any succeeded
+    if (successCount > 0) {
+      await loadDashboardData();
+    }
+  };
+
+  const resetBulkUpload = () => {
+    setUploadFile(null);
+    setParsedData([]);
+    setUploadProgress(0);
+    setUploadStatus('');
+    setUploadErrors([]);
+    setUploadResults({ success: 0, failed: 0 });
+  };
+
+  const closeBulkUploadModal = () => {
+    setShowBulkUploadModal(false);
+    resetBulkUpload();
+  };
+
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        Name: 'Generator 1',
+        Capacity: 100,
+        Unit: 'KW',
+        Venue: 'Main Office'
+      },
+      {
+        Name: 'Generator 2',
+        Capacity: 250,
+        Unit: 'KW',
+        Venue: 'Warehouse'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Generators');
+    XLSX.writeFile(workbook, 'generator_template.xlsx');
   };
 
   useEffect(() => {
@@ -540,15 +709,26 @@ export default function DashboardPage() {
                   {user?.role === 'admin' && (
                     <div className="flex justify-between items-center">
                       <h3 className="text-lg font-medium text-gray-900">Generators</h3>
-                      <button
-                        onClick={() => openAddModal('generator')}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add Generator
-                      </button>
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => setShowBulkUploadModal(true)}
+                          className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                          </svg>
+                          Bulk Upload
+                        </button>
+                        <button
+                          onClick={() => openAddModal('generator')}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Generator
+                        </button>
+                      </div>
                     </div>
                   )}
                   
@@ -1317,6 +1497,209 @@ export default function DashboardPage() {
                   {submitting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {showBulkUploadModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Bulk Upload Generators
+                </h3>
+                <button
+                  onClick={closeBulkUploadModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Step 1: File Upload */}
+              {!uploadFile && (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    <p className="mb-4">Upload an Excel file with generator data. The file should have the following columns:</p>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                      <ul className="list-disc list-inside space-y-1">
+                        <li><strong>Name</strong> - Generator name (required)</li>
+                        <li><strong>Capacity</strong> - Capacity in numbers (required)</li>
+                        <li><strong>Unit</strong> - KW, MW, or HP (optional, defaults to KW)</li>
+                        <li><strong>Venue</strong> - Venue name (required, must match existing venue)</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={downloadTemplate}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                      </svg>
+                      Download Template
+                    </button>
+
+                    <div>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="bulk-upload-file"
+                      />
+                      <label
+                        htmlFor="bulk-upload-file"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
+                      >
+                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Choose Excel File
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Processing/Preview */}
+              {uploadFile && uploadStatus === 'parsing' && (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-sm text-gray-600">Parsing Excel file...</p>
+                </div>
+              )}
+
+              {/* Step 3: Validation Results */}
+              {uploadFile && (uploadStatus === 'ready' || uploadStatus === 'error') && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-md font-medium text-gray-900">
+                      Validation Results
+                    </h4>
+                    <button
+                      onClick={resetBulkUpload}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Choose Different File
+                    </button>
+                  </div>
+
+                  {parsedData.length > 0 && (
+                    <div className="bg-green-50 p-4 rounded-md">
+                      <h5 className="text-sm font-medium text-green-800 mb-2">
+                        Valid Generators ({parsedData.length})
+                      </h5>
+                      <div className="max-h-40 overflow-y-auto">
+                        <div className="space-y-1">
+                          {parsedData.map((item, index) => (
+                            <div key={index} className="text-sm text-green-700">
+                              {item.name} - {item.capacity} {item.capacityUnit} @ {item.venueName}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadErrors.length > 0 && (
+                    <div className="bg-red-50 p-4 rounded-md">
+                      <h5 className="text-sm font-medium text-red-800 mb-2">
+                        Errors ({uploadErrors.length})
+                      </h5>
+                      <div className="max-h-40 overflow-y-auto">
+                        <div className="space-y-2">
+                          {uploadErrors.map((error, index) => (
+                            <div key={index} className="text-sm text-red-700">
+                              <strong>Row {error.row}:</strong> {error.errors.join(', ')}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedData.length > 0 && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={processBulkUpload}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      >
+                        Upload {parsedData.length} Generator{parsedData.length !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 4: Upload Progress */}
+              {uploadStatus === 'uploading' && (
+                <div className="space-y-4">
+                  <h4 className="text-md font-medium text-gray-900">Uploading Generators</h4>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600 text-center">{uploadProgress}% complete</p>
+                </div>
+              )}
+
+              {/* Step 5: Upload Complete */}
+              {uploadStatus === 'complete' && (
+                <div className="space-y-4">
+                  <h4 className="text-md font-medium text-gray-900">Upload Complete</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-green-50 p-4 rounded-md text-center">
+                      <div className="text-2xl font-bold text-green-600">{uploadResults.success}</div>
+                      <div className="text-sm text-green-700">Successful</div>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-md text-center">
+                      <div className="text-2xl font-bold text-red-600">{uploadResults.failed}</div>
+                      <div className="text-sm text-red-700">Failed</div>
+                    </div>
+                  </div>
+
+                  {uploadErrors.length > 0 && (
+                    <div className="bg-red-50 p-4 rounded-md">
+                      <h5 className="text-sm font-medium text-red-800 mb-2">Upload Errors</h5>
+                      <div className="max-h-40 overflow-y-auto">
+                        <div className="space-y-1">
+                          {uploadErrors.map((error, index) => (
+                            <div key={index} className="text-sm text-red-700">
+                              {error.errors[0]}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={resetBulkUpload}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Upload More
+                    </button>
+                    <button
+                      onClick={closeBulkUploadModal}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
