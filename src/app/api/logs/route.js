@@ -29,10 +29,25 @@ export async function GET(request) {
       query.venue = user.assignedVenue;
     }
 
-    // Get genset filter if provided
+    // Apply filters if provided
     const gensetId = searchParams.get('genset');
-    if (gensetId) {
+    if (gensetId && gensetId !== 'all') {
       query.genset = gensetId;
+    }
+
+    const venueId = searchParams.get('venue');
+    if (venueId && venueId !== 'all' && user.role === 'admin') {
+      query.venue = venueId;
+    }
+
+    const userId = searchParams.get('user');
+    if (userId && userId !== 'all') {
+      query.user = userId;
+    }
+
+    const action = searchParams.get('action');
+    if (action && action !== 'all') {
+      query.action = action;
     }
 
     const logs = await Log.find(query)

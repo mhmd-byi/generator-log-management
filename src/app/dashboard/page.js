@@ -18,6 +18,21 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   
+  // Filter states
+  const [logFilters, setLogFilters] = useState({
+    venue: 'all',
+    genset: 'all',
+    user: 'all',
+    action: 'all'
+  });
+  const [filterOptions, setFilterOptions] = useState({
+    venues: [],
+    gensets: [],
+    users: [],
+    actions: []
+  });
+  const [loadingFilters, setLoadingFilters] = useState(false);
+  
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -57,6 +72,49 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, loading, router]);
 
+  // Reload logs when filters change
+  useEffect(() => {
+    if (user?.role === 'admin' && filterOptions.venues.length > 0) {
+      loadLogs();
+    }
+  }, [logFilters]);
+
+  const loadLogs = async () => {
+    try {
+      // Build query parameters based on filters
+      const params = new URLSearchParams();
+      Object.entries(logFilters).forEach(([key, value]) => {
+        if (value && value !== 'all') {
+          params.append(key, value);
+        }
+      });
+      
+      const response = await fetch(`/api/logs?limit=100&${params.toString()}`);
+      if (response.ok) {
+        const logsData = await response.json();
+        setLogs(logsData.logs || []);
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      setError('Failed to load activity logs');
+    }
+  };
+
+  const loadFilterOptions = async () => {
+    try {
+      setLoadingFilters(true);
+      const response = await fetch('/api/logs/filters');
+      if (response.ok) {
+        const data = await response.json();
+        setFilterOptions(data);
+      }
+    } catch (error) {
+      console.error('Error loading filter options:', error);
+    } finally {
+      setLoadingFilters(false);
+    }
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoadingData(true);
@@ -71,10 +129,9 @@ export default function DashboardPage() {
 
       // Load admin data if user is admin
       if (user?.role === 'admin') {
-        const [venuesResponse, usersResponse, logsResponse] = await Promise.all([
+        const [venuesResponse, usersResponse] = await Promise.all([
           fetch('/api/admin/venues'),
-          fetch('/api/admin/users'),
-          fetch('/api/logs?limit=100')
+          fetch('/api/admin/users')
         ]);
 
         if (venuesResponse.ok) {
@@ -87,10 +144,11 @@ export default function DashboardPage() {
           setUsers(usersData.users || []);
         }
 
-        if (logsResponse.ok) {
-          const logsData = await logsResponse.json();
-          setLogs(logsData.logs || []);
-        }
+        // Load logs and filter options separately
+        await Promise.all([
+          loadLogs(),
+          loadFilterOptions()
+        ]);
       }
     } catch (error) {
       console.error('Dashboard load error:', error);
@@ -118,11 +176,7 @@ export default function DashboardPage() {
         
         // Refresh logs for admin users to show the new activity
         if (user?.role === 'admin') {
-          const logsResponse = await fetch('/api/logs?limit=100');
-          if (logsResponse.ok) {
-            const logsData = await logsResponse.json();
-            setLogs(logsData.logs || []);
-          }
+          loadLogs();
         }
       } else {
         const errorData = await response.json();
@@ -296,6 +350,27 @@ export default function DashboardPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Filter management functions
+  const handleFilterChange = (filterType, value) => {
+    setLogFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const clearAllFilters = () => {
+    setLogFilters({
+      venue: 'all',
+      genset: 'all',
+      user: 'all',
+      action: 'all'
+    });
+  };
+
+  const hasActiveFilters = () => {
+    return Object.values(logFilters).some(value => value !== 'all');
   };
 
   if (loading || !isAuthenticated) {
@@ -602,9 +677,146 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   
+                  {/* Filter Controls */}
+                  <div className="bg-white shadow rounded-lg p-4">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {/* Venue Filter */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                          <select
+                            value={logFilters.venue}
+                            onChange={(e) => handleFilterChange('venue', e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={loadingFilters}
+                          >
+                            <option value="all">All Venues</option>
+                            {filterOptions.venues.map((venue) => (
+                              <option key={venue._id} value={venue._id}>{venue.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Generator Filter */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Generator</label>
+                          <select
+                            value={logFilters.genset}
+                            onChange={(e) => handleFilterChange('genset', e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={loadingFilters}
+                          >
+                            <option value="all">All Generators</option>
+                            {filterOptions.gensets.map((genset) => (
+                              <option key={genset._id} value={genset._id}>
+                                {genset.name} ({genset.venueName})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* User Filter */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
+                          <select
+                            value={logFilters.user}
+                            onChange={(e) => handleFilterChange('user', e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={loadingFilters}
+                          >
+                            <option value="all">All Users</option>
+                            {filterOptions.users.map((user) => (
+                              <option key={user._id} value={user._id}>{user.username}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Action Filter */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                          <select
+                            value={logFilters.action}
+                            onChange={(e) => handleFilterChange('action', e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={loadingFilters}
+                          >
+                            <option value="all">All Actions</option>
+                            {filterOptions.actions.map((action) => (
+                              <option key={action} value={action}>{action.replace('_', ' ')}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {/* Clear Filters Button */}
+                      {hasActiveFilters() && (
+                        <div className="flex items-end">
+                          <button
+                            onClick={clearAllFilters}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                          >
+                            Clear Filters
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Active Filters Display */}
+                    {hasActiveFilters() && (
+                      <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                        <span>Active filters:</span>
+                        {Object.entries(logFilters).map(([key, value]) => {
+                          if (value === 'all') return null;
+                          let displayValue = value;
+                          
+                          // Get display names for filter values
+                          if (key === 'venue') {
+                            const venue = filterOptions.venues.find(v => v._id === value);
+                            displayValue = venue ? venue.name : value;
+                          } else if (key === 'genset') {
+                            const genset = filterOptions.gensets.find(g => g._id === value);
+                            displayValue = genset ? genset.name : value;
+                          } else if (key === 'user') {
+                            const user = filterOptions.users.find(u => u._id === value);
+                            displayValue = user ? user.username : value;
+                          } else if (key === 'action') {
+                            displayValue = value.replace('_', ' ');
+                          }
+                          
+                          return (
+                            <span
+                              key={key}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {key}: {displayValue}
+                              <button
+                                onClick={() => handleFilterChange(key, 'all')}
+                                className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-blue-600 hover:text-blue-800"
+                              >
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  
                   {logs.length === 0 ? (
                     <div className="text-center py-12">
-                      <p className="text-gray-500">No activity logs found</p>
+                      <p className="text-gray-500">
+                        {hasActiveFilters() ? 'No activity logs match the selected filters' : 'No activity logs found'}
+                      </p>
+                      {hasActiveFilters() && (
+                        <button
+                          onClick={clearAllFilters}
+                          className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          Clear filters to see all logs
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-white shadow overflow-hidden sm:rounded-md">
