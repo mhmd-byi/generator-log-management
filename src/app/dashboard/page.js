@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [uploadStatus, setUploadStatus] = useState(''); // 'parsing', 'uploading', 'complete', 'error'
   const [uploadErrors, setUploadErrors] = useState([]);
   const [uploadResults, setUploadResults] = useState({ success: 0, failed: 0 });
+  const [bulkUploadType, setBulkUploadType] = useState(''); // 'generator' or 'user'
   
   // Form states
   const [venueForm, setVenueForm] = useState({
@@ -115,49 +116,105 @@ export default function DashboardPage() {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-        // Validate and transform data
+        // Validate and transform data based on type
         const validatedData = [];
         const errors = [];
 
-        jsonData.forEach((row, index) => {
-          const rowNumber = index + 2; // Excel row number (accounting for header)
-          const errors_in_row = [];
+        if (bulkUploadType === 'generator') {
+          jsonData.forEach((row, index) => {
+            const rowNumber = index + 2; // Excel row number (accounting for header)
+            const errors_in_row = [];
 
-          // Validate required fields
-          if (!row.Name || typeof row.Name !== 'string' || row.Name.trim() === '') {
-            errors_in_row.push('Name is required');
-          }
-          if (!row.Capacity || isNaN(Number(row.Capacity))) {
-            errors_in_row.push('Capacity must be a valid number');
-          }
-          if (!row.Venue || typeof row.Venue !== 'string' || row.Venue.trim() === '') {
-            errors_in_row.push('Venue is required');
-          }
+            // Validate required fields for generators
+            if (!row.Name || typeof row.Name !== 'string' || row.Name.trim() === '') {
+              errors_in_row.push('Name is required');
+            }
+            if (!row.Capacity || isNaN(Number(row.Capacity))) {
+              errors_in_row.push('Capacity must be a valid number');
+            }
+            if (!row.Venue || typeof row.Venue !== 'string' || row.Venue.trim() === '') {
+              errors_in_row.push('Venue is required');
+            }
 
-          // Find venue by name
-          const venue = venues.find(v => v.name.toLowerCase().trim() === String(row.Venue).toLowerCase().trim());
-          if (row.Venue && !venue) {
-            errors_in_row.push(`Venue "${row.Venue}" not found`);
-          }
+            // Find venue by name
+            const venue = venues.find(v => v.name.toLowerCase().trim() === String(row.Venue).toLowerCase().trim());
+            if (row.Venue && !venue) {
+              errors_in_row.push(`Venue "${row.Venue}" not found`);
+            }
 
-          if (errors_in_row.length > 0) {
-            errors.push({
-              row: rowNumber,
-              errors: errors_in_row,
-              data: row
-            });
-          } else {
-            validatedData.push({
-              name: String(row.Name).trim(),
-              capacity: Number(row.Capacity),
-              capacityUnit: row.Unit && ['KW', 'MW', 'HP'].includes(String(row.Unit).toUpperCase()) 
-                ? String(row.Unit).toUpperCase() 
-                : 'KW',
-              venueId: venue._id,
-              venueName: venue.name
-            });
-          }
-        });
+            if (errors_in_row.length > 0) {
+              errors.push({
+                row: rowNumber,
+                errors: errors_in_row,
+                data: row
+              });
+            } else {
+              validatedData.push({
+                name: String(row.Name).trim(),
+                capacity: Number(row.Capacity),
+                capacityUnit: row.Unit && ['KW', 'MW', 'HP'].includes(String(row.Unit).toUpperCase()) 
+                  ? String(row.Unit).toUpperCase() 
+                  : 'KW',
+                venueId: venue._id,
+                venueName: venue.name
+              });
+            }
+          });
+        } else if (bulkUploadType === 'user') {
+          jsonData.forEach((row, index) => {
+            const rowNumber = index + 2; // Excel row number (accounting for header)
+            const errors_in_row = [];
+
+            // Validate required fields for users
+            if (!row.Username || typeof row.Username !== 'string' || row.Username.trim() === '') {
+              errors_in_row.push('Username is required');
+            }
+            if (!row.Email || typeof row.Email !== 'string' || row.Email.trim() === '') {
+              errors_in_row.push('Email is required');
+            } else {
+              // Basic email validation
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+              if (!emailRegex.test(row.Email.trim())) {
+                errors_in_row.push('Invalid email format');
+              }
+            }
+            if (!row.Password || typeof row.Password !== 'string' || row.Password.trim() === '') {
+              errors_in_row.push('Password is required');
+            }
+
+            // Validate role
+            const role = row.Role ? String(row.Role).toLowerCase().trim() : 'user';
+            if (!['user', 'admin'].includes(role)) {
+              errors_in_row.push('Role must be "user" or "admin"');
+            }
+
+            // Find venue by name (optional for users)
+            let venue = null;
+            if (row.Venue && typeof row.Venue === 'string' && row.Venue.trim() !== '') {
+              venue = venues.find(v => v.name.toLowerCase().trim() === String(row.Venue).toLowerCase().trim());
+              if (!venue) {
+                errors_in_row.push(`Venue "${row.Venue}" not found`);
+              }
+            }
+
+            if (errors_in_row.length > 0) {
+              errors.push({
+                row: rowNumber,
+                errors: errors_in_row,
+                data: row
+              });
+            } else {
+              validatedData.push({
+                username: String(row.Username).trim(),
+                email: String(row.Email).trim(),
+                password: String(row.Password).trim(),
+                role: role,
+                assignedVenue: venue ? venue._id : '',
+                venueName: venue ? venue.name : 'No venue assigned'
+              });
+            }
+          });
+        }
 
         setParsedData(validatedData);
         setUploadErrors(errors);
@@ -182,9 +239,12 @@ export default function DashboardPage() {
     let failedCount = 0;
     const errors = [];
 
+    // Determine endpoint based on upload type
+    const endpoint = bulkUploadType === 'generator' ? '/api/admin/gensets' : '/api/admin/users';
+
     for (let i = 0; i < parsedData.length; i++) {
       try {
-        const response = await fetch('/api/admin/gensets', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -234,25 +294,58 @@ export default function DashboardPage() {
   };
 
   const downloadTemplate = () => {
-    const templateData = [
-      {
-        Name: 'Generator 1',
-        Capacity: 100,
-        Unit: 'KW',
-        Venue: 'Main Office'
-      },
-      {
-        Name: 'Generator 2',
-        Capacity: 250,
-        Unit: 'KW',
-        Venue: 'Warehouse'
-      }
-    ];
+    let templateData = [];
+    let filename = '';
+    let sheetName = '';
+
+    if (bulkUploadType === 'generator') {
+      templateData = [
+        {
+          Name: 'Generator 1',
+          Capacity: 100,
+          Unit: 'KW',
+          Venue: 'Main Office'
+        },
+        {
+          Name: 'Generator 2',
+          Capacity: 250,
+          Unit: 'KW',
+          Venue: 'Warehouse'
+        }
+      ];
+      filename = 'generator_template.xlsx';
+      sheetName = 'Generators';
+    } else if (bulkUploadType === 'user') {
+      templateData = [
+        {
+          Username: 'john.doe',
+          Email: 'john.doe@example.com',
+          Password: 'password123',
+          Role: 'user',
+          Venue: 'Main Office'
+        },
+        {
+          Username: 'jane.admin',
+          Email: 'jane.admin@example.com',
+          Password: 'securepass456',
+          Role: 'admin',
+          Venue: ''
+        }
+      ];
+      filename = 'user_template.xlsx';
+      sheetName = 'Users';
+    }
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Generators');
-    XLSX.writeFile(workbook, 'generator_template.xlsx');
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const openBulkUploadModal = (type) => {
+    setBulkUploadType(type);
+    setShowBulkUploadModal(true);
+    resetBulkUpload();
   };
 
   useEffect(() => {
@@ -711,7 +804,7 @@ export default function DashboardPage() {
                       <h3 className="text-lg font-medium text-gray-900">Generators</h3>
                       <div className="flex space-x-3">
                         <button
-                          onClick={() => setShowBulkUploadModal(true)}
+                          onClick={() => openBulkUploadModal('generator')}
                           className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -847,15 +940,26 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-medium text-gray-900">Users</h3>
-                    <button
-                      onClick={() => openAddModal('user')}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add User
-                    </button>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => openBulkUploadModal('user')}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                        Bulk Upload
+                      </button>
+                      <button
+                        onClick={() => openAddModal('user')}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add User
+                      </button>
+                    </div>
                   </div>
                   
                   {users.length === 0 ? (
@@ -1509,7 +1613,7 @@ export default function DashboardPage() {
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
-                  Bulk Upload Generators
+                  Bulk Upload {bulkUploadType === 'generator' ? 'Generators' : 'Users'}
                 </h3>
                 <button
                   onClick={closeBulkUploadModal}
@@ -1525,14 +1629,26 @@ export default function DashboardPage() {
               {!uploadFile && (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600">
-                    <p className="mb-4">Upload an Excel file with generator data. The file should have the following columns:</p>
+                    <p className="mb-4">
+                      Upload an Excel file with {bulkUploadType} data. The file should have the following columns:
+                    </p>
                     <div className="bg-gray-50 p-4 rounded-md">
-                      <ul className="list-disc list-inside space-y-1">
-                        <li><strong>Name</strong> - Generator name (required)</li>
-                        <li><strong>Capacity</strong> - Capacity in numbers (required)</li>
-                        <li><strong>Unit</strong> - KW, MW, or HP (optional, defaults to KW)</li>
-                        <li><strong>Venue</strong> - Venue name (required, must match existing venue)</li>
-                      </ul>
+                      {bulkUploadType === 'generator' ? (
+                        <ul className="list-disc list-inside space-y-1">
+                          <li><strong>Name</strong> - Generator name (required)</li>
+                          <li><strong>Capacity</strong> - Capacity in numbers (required)</li>
+                          <li><strong>Unit</strong> - KW, MW, or HP (optional, defaults to KW)</li>
+                          <li><strong>Venue</strong> - Venue name (required, must match existing venue)</li>
+                        </ul>
+                      ) : (
+                        <ul className="list-disc list-inside space-y-1">
+                          <li><strong>Username</strong> - Unique username (required)</li>
+                          <li><strong>Email</strong> - Valid email address (required)</li>
+                          <li><strong>Password</strong> - User password (required)</li>
+                          <li><strong>Role</strong> - &quot;user&quot; or &quot;admin&quot; (optional, defaults to &quot;user&quot;)</li>
+                          <li><strong>Venue</strong> - Venue name (optional, must match existing venue if provided)</li>
+                        </ul>
+                      )}
                     </div>
                   </div>
 
@@ -1595,13 +1711,17 @@ export default function DashboardPage() {
                   {parsedData.length > 0 && (
                     <div className="bg-green-50 p-4 rounded-md">
                       <h5 className="text-sm font-medium text-green-800 mb-2">
-                        Valid Generators ({parsedData.length})
+                        Valid {bulkUploadType === 'generator' ? 'Generators' : 'Users'} ({parsedData.length})
                       </h5>
                       <div className="max-h-40 overflow-y-auto">
                         <div className="space-y-1">
                           {parsedData.map((item, index) => (
                             <div key={index} className="text-sm text-green-700">
-                              {item.name} - {item.capacity} {item.capacityUnit} @ {item.venueName}
+                              {bulkUploadType === 'generator' ? (
+                                `${item.name} - ${item.capacity} ${item.capacityUnit} @ ${item.venueName}`
+                              ) : (
+                                `${item.username} (${item.email}) - ${item.role} @ ${item.venueName}`
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1632,7 +1752,7 @@ export default function DashboardPage() {
                         onClick={processBulkUpload}
                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                       >
-                        Upload {parsedData.length} Generator{parsedData.length !== 1 ? 's' : ''}
+                        Upload {parsedData.length} {bulkUploadType === 'generator' ? 'Generator' : 'User'}{parsedData.length !== 1 ? 's' : ''}
                       </button>
                     </div>
                   )}
@@ -1642,7 +1762,7 @@ export default function DashboardPage() {
               {/* Step 4: Upload Progress */}
               {uploadStatus === 'uploading' && (
                 <div className="space-y-4">
-                  <h4 className="text-md font-medium text-gray-900">Uploading Generators</h4>
+                  <h4 className="text-md font-medium text-gray-900">Uploading {bulkUploadType === 'generator' ? 'Generators' : 'Users'}</h4>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
