@@ -31,9 +31,33 @@ export async function POST(request, { params }) {
       }
     }
 
-    // Toggle the status
+    // Safety check: Prevent turning ON generators without active venue
     const previousStatus = genset.status;
     const newStatus = genset.status === 'ON' ? 'OFF' : 'ON';
+    
+    if (newStatus === 'ON') {
+      // Check if generator has a venue assigned
+      if (!genset.venue) {
+        return NextResponse.json(
+          { 
+            error: 'Cannot turn on generator: No venue assigned. Please assign this generator to an active venue before operation.',
+            code: 'NO_VENUE_ASSIGNED'
+          },
+          { status: 400 }
+        );
+      }
+      
+      // Check if the assigned venue is active
+      if (!genset.venue.isActive) {
+        return NextResponse.json(
+          { 
+            error: `Cannot turn on generator: Venue "${genset.venue.name}" has been deactivated. Generator cannot be operated without an active venue.`,
+            code: 'VENUE_INACTIVE'
+          },
+          { status: 400 }
+        );
+      }
+    }
     
     genset.status = newStatus;
     genset.lastStatusChangedBy = user._id;
@@ -44,7 +68,7 @@ export async function POST(request, { params }) {
     // Create log entry
     await Log.create({
       genset: genset._id,
-      venue: genset.venue._id,
+      venue: genset.venue?._id || null,
       user: user._id,
       action: newStatus === 'ON' ? 'TURN_ON' : 'TURN_OFF',
       previousStatus,

@@ -23,7 +23,7 @@ export async function GET(request) {
       : { venue: user.assignedVenue, isActive: true };
 
     const gensets = await Genset.find(query)
-      .populate('venue', 'name')
+      .populate('venue', 'name isActive')
       .populate('lastStatusChangedBy', 'username')
       .sort({ name: 1 });
 

@@ -180,11 +180,15 @@ export default function DashboardPage() {
         }
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to toggle generator');
+        // Throw error for GeneratorCard to handle
+        const error = new Error(errorData.error || 'Failed to toggle generator');
+        error.response = { data: errorData };
+        throw error;
       }
     } catch (error) {
       console.error('Toggle error:', error);
-      setError('Failed to toggle generator');
+      // Re-throw the error so GeneratorCard can handle it
+      throw error;
     }
   };
 

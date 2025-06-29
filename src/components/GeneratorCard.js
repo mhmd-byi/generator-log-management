@@ -5,13 +5,22 @@ import { useState } from 'react';
 export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
   const [isToggling, setIsToggling] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [error, setError] = useState('');
 
   const handleToggle = async () => {
     if (!canToggle || isToggling) return;
     
     setIsToggling(true);
+    setError('');
     try {
       await onToggle(genset._id);
+    } catch (err) {
+      // Handle API errors
+      if (err.response?.data?.code === 'NO_VENUE_ASSIGNED' || err.response?.data?.code === 'VENUE_INACTIVE') {
+        setError(err.response.data.error);
+      } else {
+        setError('Failed to toggle generator status');
+      }
     } finally {
       setIsToggling(false);
     }
@@ -27,6 +36,22 @@ export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
     return status === 'ON'
       ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
       : 'bg-green-600 hover:bg-green-700 focus:ring-green-500';
+  };
+
+  // Check if generator can be turned on
+  const canTurnOn = () => {
+    if (genset.status === 'ON') return true; // Can always turn off
+    return genset.venue && genset.venue.isActive !== false; // Can only turn on if venue exists and is active
+  };
+
+  const getVenueWarning = () => {
+    if (!genset.venue) {
+      return 'Cannot operate: No venue assigned';
+    }
+    if (genset.venue.isActive === false) {
+      return 'Cannot operate: Venue has been deactivated';
+    }
+    return null;
   };
 
   return (
@@ -46,8 +71,9 @@ export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
               {genset.capacity} {genset.capacityUnit}{genset.fuelType ? ` • ${genset.fuelType}` : ''}
             </p>
             {genset.venue ? (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className={`text-sm mt-1 ${genset.venue.isActive === false ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                 📍 {genset.venue.name}
+                {genset.venue.isActive === false && ' (Deactivated)'}
               </p>
             ) : (
               <p className="text-sm text-yellow-600 mt-1 font-medium">
@@ -62,20 +88,34 @@ export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
             </span>
             
             {canToggle && (
-              <button
-                onClick={handleToggle}
-                disabled={isToggling}
-                className={`inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white ${getToggleButtonColor(genset.status)} focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {isToggling ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Updating...
-                  </div>
-                ) : (
-                  genset.status === 'ON' ? 'Turn Off' : 'Turn On'
+              <div className="flex flex-col items-end space-y-2">
+                <button
+                  onClick={handleToggle}
+                  disabled={isToggling || !canTurnOn()}
+                  className={`inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white ${
+                    !canTurnOn() && genset.status === 'OFF' 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : getToggleButtonColor(genset.status)
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={!canTurnOn() && genset.status === 'OFF' ? getVenueWarning() : ''}
+                >
+                  {isToggling ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </div>
+                  ) : (
+                    genset.status === 'ON' ? 'Turn Off' : 'Turn On'
+                  )}
+                </button>
+                
+                {/* Venue warning below button */}
+                {!canTurnOn() && genset.status === 'OFF' && (
+                  <p className="text-xs text-red-600 text-right max-w-32">
+                    {getVenueWarning()}
+                  </p>
                 )}
-              </button>
+              </div>
             )}
           </div>
         </div>
@@ -88,6 +128,13 @@ export default function GeneratorCard({ genset, onToggle, canToggle = true }) {
                 <span> by {genset.lastStatusChangedBy.username}</span>
               )}
             </p>
+          </div>
+        )}
+
+        {/* Error message display */}
+        {error && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
 
