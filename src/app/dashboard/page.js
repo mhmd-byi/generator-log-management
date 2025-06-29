@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import GeneratorCard from '../../components/GeneratorCard';
+import StatsDashboard from '../../components/dashboard/StatsDashboard';
 
 export default function DashboardPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -13,7 +14,7 @@ export default function DashboardPage() {
   const [venues, setVenues] = useState([]);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [activeTab, setActiveTab] = useState('generators');
+  const [activeTab, setActiveTab] = useState('statistics');
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   
@@ -310,12 +311,14 @@ export default function DashboardPage() {
 
   const tabs = user?.role === 'admin' 
     ? [
+        { id: 'statistics', name: 'Statistics', count: null },
         { id: 'generators', name: 'Generators', count: gensets.length },
         { id: 'venues', name: 'Venues', count: venues.length },
         { id: 'users', name: 'Users', count: users.length },
         { id: 'logs', name: 'Activity Logs', count: logs.length }
       ]
     : [
+        { id: 'statistics', name: 'Statistics', count: null },
         { id: 'generators', name: 'Generators', count: gensets.length }
       ];
 
@@ -361,7 +364,7 @@ export default function DashboardPage() {
                   } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
                 >
                   {tab.name}
-                  {tab.count > 0 && (
+                  {tab.count !== null && tab.count > 0 && (
                     <span className={`${
                       activeTab === tab.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-900'
                     } hidden ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium md:inline-block`}>
@@ -383,6 +386,13 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
+              {/* Statistics Tab */}
+              {activeTab === 'statistics' && (
+                <div className="space-y-4">
+                  <StatsDashboard user={user} />
+                </div>
+              )}
+
               {/* Generators Tab */}
               {activeTab === 'generators' && (
                 <div className="space-y-4">
