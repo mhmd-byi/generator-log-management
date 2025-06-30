@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [showManualLogModal, setShowManualLogModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'venue', 'generator', 'user'
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -73,6 +74,14 @@ export default function DashboardPage() {
     password: '',
     role: 'user',
     assignedVenue: ''
+  });
+
+  // Manual log form state
+  const [manualLogForm, setManualLogForm] = useState({
+    gensetId: '',
+    action: 'MANUAL',
+    notes: '',
+    customTimestamp: ''
   });
 
   // Generator form management functions
@@ -574,6 +583,7 @@ export default function DashboardPage() {
     setShowAddModal(false);
     setShowEditModal(false);
     setShowDeleteModal(false);
+    setShowManualLogModal(false);
     setModalType('');
     setEditingItem(null);
     setDeletingItem(null);
@@ -582,6 +592,7 @@ export default function DashboardPage() {
     setVenueForm({ name: '', description: '', contactPerson: { name: '', phone: '', email: '' } });
     setGeneratorForm([{ name: '', capacity: '', capacityUnit: 'KW', venueId: '' }]);
     setUserForm({ username: '', email: '', password: '', role: 'user', assignedVenue: '' });
+    setManualLogForm({ gensetId: '', action: 'MANUAL', notes: '', customTimestamp: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -699,6 +710,65 @@ export default function DashboardPage() {
 
   const hasActiveFilters = () => {
     return Object.values(logFilters).some(value => value !== 'all');
+  };
+
+  // Manual log functions
+  const openManualLogModal = () => {
+    setShowManualLogModal(true);
+    setManualLogForm({
+      gensetId: '',
+      action: 'MANUAL',
+      notes: '',
+      customTimestamp: ''
+    });
+  };
+
+  const handleManualLogSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const { gensetId, action, notes, customTimestamp } = manualLogForm;
+
+      if (!gensetId || !notes.trim()) {
+        setError('Please select a generator and enter notes.');
+        return;
+      }
+
+      const payload = {
+        gensetId,
+        action,
+        notes: notes.trim()
+      };
+
+      // Add custom timestamp if provided
+      if (customTimestamp) {
+        payload.customTimestamp = customTimestamp;
+      }
+
+      const response = await fetch('/api/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        await loadLogs(); // Refresh logs
+        closeModal();
+        setError(''); // Clear any previous errors
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create log entry');
+      }
+    } catch (error) {
+      console.error('Manual log submit error:', error);
+      setError('Failed to create log entry. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading || !isAuthenticated) {
@@ -1022,8 +1092,19 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-medium text-gray-900">Activity Logs</h3>
-                    <div className="text-sm text-gray-500">
-                      Showing recent generator activities across all venues
+                    <div className="flex items-center space-x-4">
+                      <button
+                        onClick={openManualLogModal}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add Manual Log
+                      </button>
+                      <div className="text-sm text-gray-500">
+                        Showing recent generator activities across all venues
+                      </div>
                     </div>
                   </div>
                   
@@ -1192,6 +1273,9 @@ export default function DashboardPage() {
                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 User
                               </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Notes
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
@@ -1256,6 +1340,15 @@ export default function DashboardPage() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="text-sm font-medium text-gray-900">{log.user?.username}</div>
                                   <div className="text-sm text-gray-500">{log.user?.email}</div>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                  {log.notes ? (
+                                    <div className="truncate" title={log.notes}>
+                                      {log.notes}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -1821,6 +1914,125 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Log Modal */}
+      {showManualLogModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Add Manual Log Entry</h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleManualLogSubmit} className="space-y-4">
+              {/* Generator Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Generator <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={manualLogForm.gensetId}
+                  onChange={(e) => setManualLogForm({ ...manualLogForm, gensetId: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Generator</option>
+                  {gensets.map((genset) => (
+                    <option key={genset._id} value={genset._id}>
+                      {genset.name} - {genset.venue?.name || 'No Venue'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Action Type
+                </label>
+                <select
+                  value={manualLogForm.action}
+                  onChange={(e) => setManualLogForm({ ...manualLogForm, action: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="MANUAL">Manual Entry</option>
+                  <option value="TURN_ON">Turn On</option>
+                  <option value="TURN_OFF">Turn Off</option>
+                  <option value="CREATED">Created</option>
+                  <option value="UPDATED">Updated</option>
+                </select>
+              </div>
+
+              {/* Custom Timestamp */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom Timestamp (Optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={manualLogForm.customTimestamp}
+                  onChange={(e) => setManualLogForm({ ...manualLogForm, customTimestamp: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to use current time
+                </p>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={manualLogForm.notes}
+                  onChange={(e) => setManualLogForm({ ...manualLogForm, notes: e.target.value })}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter detailed notes about this log entry..."
+                  required
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {manualLogForm.notes.length}/500 characters
+                </p>
+              </div>
+
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  disabled={submitting || !manualLogForm.gensetId || !manualLogForm.notes.trim()}
+                >
+                  {submitting ? 'Creating...' : 'Create Log Entry'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

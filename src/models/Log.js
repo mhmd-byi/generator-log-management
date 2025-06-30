@@ -18,7 +18,7 @@ const logSchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['TURN_ON', 'TURN_OFF', 'CREATED', 'UPDATED'],
+    enum: ['TURN_ON', 'TURN_OFF', 'CREATED', 'UPDATED', 'DELETED', 'VENUE_DELETED', 'VENUE_UNTAGGED', 'MANUAL'],
     required: true
   },
   previousStatus: {

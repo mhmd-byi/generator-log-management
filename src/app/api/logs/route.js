@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '../../../lib/db';
 import Log from '../../../models/Log';
+import Genset from '../../../models/Genset';
 import { requireAuth } from '../../../lib/auth';
 
 export async function GET(request) {
@@ -76,4 +77,87 @@ export async function GET(request) {
       { status: 500 }
     );
   }
-} 
+}
+
+export async function POST(request) {
+  try {
+    const user = await requireAuth(request);
+    if (user instanceof NextResponse) return user;
+
+    // Only admins can create manual log entries
+    if (user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Access denied. Only administrators can create manual log entries.' },
+        { status: 403 }
+      );
+    }
+
+    await dbConnect();
+    
+    const data = await request.json();
+    const { gensetId, action, notes, customTimestamp } = data;
+
+    // Validate required fields
+    if (!gensetId || !action || !notes) {
+      return NextResponse.json(
+        { error: 'Generator, action, and notes are required' },
+        { status: 400 }
+      );
+    }
+
+    // Find the genset and get venue info
+    const genset = await Genset.findById(gensetId).populate('venue');
+    if (!genset) {
+      return NextResponse.json(
+        { error: 'Generator not found' },
+        { status: 404 }
+      );
+    }
+
+    // Admin-only check already performed above, so no additional venue restrictions needed
+
+    // Create manual log entry
+    const logData = {
+      genset: gensetId,
+      venue: genset.venue._id,
+      user: user._id,
+      action: action === 'MANUAL' ? 'MANUAL' : action,
+      notes: notes.trim(),
+    };
+
+    // Add timestamp if provided
+    if (customTimestamp) {
+      logData.timestamp = new Date(customTimestamp);
+    }
+
+    // For status-related actions, record current status
+    if (['TURN_ON', 'TURN_OFF'].includes(action)) {
+      logData.previousStatus = genset.status;
+      logData.newStatus = genset.status; // Manual entry doesn't change actual status
+    } else if (action === 'MANUAL') {
+      // For pure manual entries, record current status as context
+      logData.newStatus = genset.status;
+    }
+
+    const log = await Log.create(logData);
+    
+    // Populate the created log for response
+    await log.populate([
+      { path: 'genset', select: 'name model' },
+      { path: 'venue', select: 'name' },
+      { path: 'user', select: 'username email' }
+    ]);
+
+    return NextResponse.json({
+      message: 'Manual log entry created successfully',
+      log
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('Create manual log error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
