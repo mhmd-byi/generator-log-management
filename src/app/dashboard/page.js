@@ -788,6 +788,21 @@ export default function DashboardPage() {
     }
   };
 
+  // Helper function to get venue statistics
+  const getVenueStats = (venueId) => {
+    const venueGensets = gensets.filter(genset => genset.venue?._id === venueId);
+    const totalGenerators = venueGensets.length;
+    const onlineGenerators = venueGensets.filter(genset => genset.status === 'ON').length;
+    const offlineGenerators = totalGenerators - onlineGenerators;
+    
+    return {
+      total: totalGenerators,
+      online: onlineGenerators,
+      offline: offlineGenerators,
+      onlinePercentage: totalGenerators > 0 ? Math.round((onlineGenerators / totalGenerators) * 100) : 0
+    };
+  };
+
   // Log editing functions
   const openEditLogModal = (log) => {
     setEditingLog(log);
@@ -1075,44 +1090,103 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                      {venues.map((venue) => (
-                        <div key={venue._id} className="relative bg-white overflow-hidden shadow rounded-lg">
-                          <div className="p-6">
-                            <h3 className="text-lg font-medium text-gray-900">{venue.name}</h3>
-                            {venue.description && (
-                              <p className="text-sm text-gray-600 mt-2">{venue.description}</p>
-                            )}
-                            {venue.contactPerson?.name && (
-                              <div className="mt-3 text-sm text-gray-600">
-                                <p><strong>Contact:</strong> {venue.contactPerson.name}</p>
-                                {venue.contactPerson.phone && <p>Phone: {venue.contactPerson.phone}</p>}
-                                {venue.contactPerson.email && <p>Email: {venue.contactPerson.email}</p>}
+                      {venues.map((venue) => {
+                        const stats = getVenueStats(venue._id);
+                        return (
+                          <div key={venue._id} className="relative bg-white overflow-hidden shadow rounded-lg">
+                            <div className="p-6">
+                              <h3 className="text-lg font-medium text-gray-900">{venue.name}</h3>
+                              {venue.description && (
+                                <p className="text-sm text-gray-600 mt-2">{venue.description}</p>
+                              )}
+                              
+                              {/* Generator Statistics */}
+                              <div className="mt-4 bg-gray-50 rounded-lg p-4">
+                                <h4 className="text-sm font-medium text-gray-900 mb-3">Generators Overview</h4>
+                                
+                                {stats.total === 0 ? (
+                                  <div className="text-center py-2">
+                                    <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <p className="text-sm text-gray-500 mt-1">No generators assigned</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {/* Statistics Row */}
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex space-x-4">
+                                        <div className="flex items-center">
+                                          <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                                          <span className="text-sm font-medium text-green-700">{stats.online} Online</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                          <div className="w-3 h-3 bg-gray-400 rounded-full mr-2"></div>
+                                          <span className="text-sm font-medium text-gray-600">{stats.offline} Offline</span>
+                                        </div>
+                                      </div>
+                                      <span className="text-sm font-bold text-gray-900">{stats.total} Total</span>
+                                    </div>
+                                    
+                                    {/* Progress Bar */}
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                        style={{ width: `${stats.onlinePercentage}%` }}
+                                      ></div>
+                                    </div>
+                                    
+                                    {/* Status Text */}
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className="text-gray-600">
+                                        {stats.onlinePercentage}% operational
+                                      </span>
+                                      <span className={`font-medium ${
+                                        stats.onlinePercentage >= 80 ? 'text-green-600' :
+                                        stats.onlinePercentage >= 50 ? 'text-yellow-600' :
+                                        'text-red-600'
+                                      }`}>
+                                        {stats.onlinePercentage >= 80 ? 'Excellent' :
+                                         stats.onlinePercentage >= 50 ? 'Good' :
+                                         stats.onlinePercentage > 0 ? 'Poor' : 'All Offline'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            <div className="mt-4 text-xs text-gray-500">
-                              Created: {new Date(venue.createdAt).toLocaleDateString()}
+
+                              {venue.contactPerson?.name && (
+                                <div className="mt-3 text-sm text-gray-600">
+                                  <p><strong>Contact:</strong> {venue.contactPerson.name}</p>
+                                  {venue.contactPerson.phone && <p>Phone: {venue.contactPerson.phone}</p>}
+                                  {venue.contactPerson.email && <p>Email: {venue.contactPerson.email}</p>}
+                                </div>
+                              )}
+                              <div className="mt-4 text-xs text-gray-500">
+                                Created: {new Date(venue.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <div className="absolute top-2 right-2 flex space-x-1">
+                              <button
+                                onClick={() => openEditModal('venue', venue)}
+                                className="p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => openDeleteModal('venue', venue)}
+                                className="p-1 bg-white rounded-full shadow-md hover:bg-red-50 text-gray-600 hover:text-red-800"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
                             </div>
                           </div>
-                          <div className="absolute top-2 right-2 flex space-x-1">
-                            <button
-                              onClick={() => openEditModal('venue', venue)}
-                              className="p-1 bg-white rounded-full shadow-md hover:bg-gray-50 text-gray-600 hover:text-gray-800"
-                            >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => openDeleteModal('venue', venue)}
-                              className="p-1 bg-white rounded-full shadow-md hover:bg-red-50 text-gray-600 hover:text-red-800"
-                            >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
