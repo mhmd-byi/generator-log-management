@@ -904,7 +904,8 @@ export default function DashboardPage() {
       ]
     : [
         { id: 'statistics', name: 'Statistics', count: null },
-        { id: 'generators', name: 'Generators', count: gensets.length }
+        { id: 'generators', name: 'Generators', count: gensets.length },
+        { id: 'logs', name: 'Activity Logs', count: logs.length }
       ];
 
   const modalTitle = showEditModal 
@@ -1200,22 +1201,40 @@ export default function DashboardPage() {
               )}
 
               {/* Activity Logs Tab */}
-              {activeTab === 'logs' && user?.role === 'admin' && (
+              {activeTab === 'logs' && (
+                user?.role !== 'admin' && !user?.assignedVenue ? (
+                  <div className="text-center py-12">
+                    <div className="max-w-md mx-auto">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No Venue Assigned</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        You need to be assigned to a venue to view activity logs. Please contact your administrator.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-medium text-gray-900">Activity Logs</h3>
                     <div className="flex items-center space-x-4">
-                      <button
-                        onClick={openManualLogModal}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add Manual Log
-                      </button>
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={openManualLogModal}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Manual Log
+                        </button>
+                      )}
                       <div className="text-sm text-gray-500">
-                        Showing recent generator activities across all venues
+                        {user?.role === 'admin' 
+                          ? 'Showing recent generator activities across all venues'
+                          : `Showing activities for ${user?.assignedVenue?.name || 'your assigned venue'}`
+                        }
                       </div>
                     </div>
                   </div>
@@ -1223,22 +1242,24 @@ export default function DashboardPage() {
                   {/* Filter Controls */}
                   <div className="bg-white shadow rounded-lg p-4">
                     <div className="flex flex-wrap items-center gap-4">
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Venue Filter */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                          <select
-                            value={logFilters.venue}
-                            onChange={(e) => handleFilterChange('venue', e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            disabled={loadingFilters}
-                          >
-                            <option value="all">All Venues</option>
-                            {filterOptions.venues.map((venue) => (
-                              <option key={venue._id} value={venue._id}>{venue.name}</option>
-                            ))}
-                          </select>
-                        </div>
+                      <div className={`flex-1 grid grid-cols-1 gap-4 ${user?.role === 'admin' ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                        {/* Venue Filter - Only for Admins */}
+                        {user?.role === 'admin' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                            <select
+                              value={logFilters.venue}
+                              onChange={(e) => handleFilterChange('venue', e.target.value)}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              disabled={loadingFilters}
+                            >
+                              <option value="all">All Venues</option>
+                              {filterOptions.venues.map((venue) => (
+                                <option key={venue._id} value={venue._id}>{venue.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
 
                         {/* Generator Filter */}
                         <div>
@@ -1250,11 +1271,13 @@ export default function DashboardPage() {
                             disabled={loadingFilters}
                           >
                             <option value="all">All Generators</option>
-                            {filterOptions.gensets.map((genset) => (
-                              <option key={genset._id} value={genset._id}>
-                                {genset.name} ({genset.venueName})
-                              </option>
-                            ))}
+                            {filterOptions.gensets
+                              .filter(genset => user?.role === 'admin' || genset.venueId === user?.assignedVenue?._id)
+                              .map((genset) => (
+                                <option key={genset._id} value={genset._id}>
+                                  {user?.role === 'admin' ? `${genset.name} (${genset.venueName})` : genset.name}
+                                </option>
+                              ))}
                           </select>
                         </div>
 
@@ -1268,9 +1291,11 @@ export default function DashboardPage() {
                             disabled={loadingFilters}
                           >
                             <option value="all">All Users</option>
-                            {filterOptions.users.map((user) => (
-                              <option key={user._id} value={user._id}>{user.username}</option>
-                            ))}
+                            {filterOptions.users
+                              .filter(filterUser => user?.role === 'admin' || filterUser.assignedVenue === user?.assignedVenue?._id)
+                              .map((filterUser) => (
+                                <option key={filterUser._id} value={filterUser._id}>{filterUser.username}</option>
+                              ))}
                           </select>
                         </div>
 
@@ -1499,6 +1524,7 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
+                )
               )}
             </>
           )}
