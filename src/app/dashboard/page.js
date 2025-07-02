@@ -40,10 +40,14 @@ export default function DashboardPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [showManualLogModal, setShowManualLogModal] = useState(false);
+  const [showEditLogModal, setShowEditLogModal] = useState(false);
+  const [showDeleteLogModal, setShowDeleteLogModal] = useState(false);
   const [modalType, setModalType] = useState(''); // 'venue', 'generator', 'user'
   const [submitting, setSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deletingItem, setDeletingItem] = useState(null);
+  const [editingLog, setEditingLog] = useState(null);
+  const [deletingLog, setDeletingLog] = useState(null);
   
   // Bulk upload states
   const [uploadFile, setUploadFile] = useState(null);
@@ -78,6 +82,14 @@ export default function DashboardPage() {
 
   // Manual log form state
   const [manualLogForm, setManualLogForm] = useState({
+    gensetId: '',
+    action: 'MANUAL',
+    notes: '',
+    customTimestamp: ''
+  });
+
+  // Edit log form state
+  const [editLogForm, setEditLogForm] = useState({
     gensetId: '',
     action: 'MANUAL',
     notes: '',
@@ -584,15 +596,20 @@ export default function DashboardPage() {
     setShowEditModal(false);
     setShowDeleteModal(false);
     setShowManualLogModal(false);
+    setShowEditLogModal(false);
+    setShowDeleteLogModal(false);
     setModalType('');
     setEditingItem(null);
     setDeletingItem(null);
+    setEditingLog(null);
+    setDeletingLog(null);
     setError('');
     // Reset forms
     setVenueForm({ name: '', description: '', contactPerson: { name: '', phone: '', email: '' } });
     setGeneratorForm([{ name: '', capacity: '', capacityUnit: 'KW', venueId: '' }]);
     setUserForm({ username: '', email: '', password: '', role: 'user', assignedVenue: '' });
     setManualLogForm({ gensetId: '', action: 'MANUAL', notes: '', customTimestamp: '' });
+    setEditLogForm({ gensetId: '', action: 'MANUAL', notes: '', customTimestamp: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -766,6 +783,101 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Manual log submit error:', error);
       setError('Failed to create log entry. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Log editing functions
+  const openEditLogModal = (log) => {
+    setEditingLog(log);
+    setEditLogForm({
+      gensetId: log.genset._id,
+      action: log.action,
+      notes: log.notes || '',
+      customTimestamp: log.timestamp ? new Date(log.timestamp).toISOString().slice(0, 16) : ''
+    });
+    setShowEditLogModal(true);
+  };
+
+  const openDeleteLogModal = (log) => {
+    setDeletingLog(log);
+    setShowDeleteLogModal(true);
+  };
+
+  const handleEditLogSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const { gensetId, action, notes, customTimestamp } = editLogForm;
+
+      if (!gensetId || !notes.trim()) {
+        setError('Please select a generator and enter notes.');
+        return;
+      }
+
+      const payload = {
+        gensetId,
+        action,
+        notes: notes.trim()
+      };
+
+      // Add custom timestamp if provided
+      if (customTimestamp) {
+        payload.customTimestamp = customTimestamp;
+      }
+
+      const response = await fetch(`/api/logs/${editingLog._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        await loadLogs(); // Refresh logs
+        setShowEditLogModal(false);
+        setEditingLog(null);
+        setError(''); // Clear any previous errors
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to update log entry');
+      }
+    } catch (error) {
+      console.error('Edit log submit error:', error);
+      setError('Failed to update log entry. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteLog = async () => {
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/logs/${deletingLog._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        await loadLogs(); // Refresh logs
+        setShowDeleteLogModal(false);
+        setDeletingLog(null);
+        setError(''); // Clear any previous errors
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete log entry');
+      }
+    } catch (error) {
+      console.error('Delete log error:', error);
+      setError('Failed to delete log entry. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -1276,6 +1388,11 @@ export default function DashboardPage() {
                               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Notes
                               </th>
+                              {user?.role === 'admin' && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Actions
+                                </th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
@@ -1350,6 +1467,30 @@ export default function DashboardPage() {
                                     <span className="text-gray-400">-</span>
                                   )}
                                 </td>
+                                {user?.role === 'admin' && (
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => openEditLogModal(log)}
+                                        className="text-blue-600 hover:text-blue-900"
+                                        title="Edit log"
+                                      >
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => openDeleteLogModal(log)}
+                                        className="text-red-600 hover:text-red-900"
+                                        title="Delete log"
+                                      >
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -2033,6 +2174,201 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Log Modal */}
+      {showEditLogModal && editingLog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Edit Log Entry</h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleEditLogSubmit} className="space-y-4">
+              {/* Generator Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Generator <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editLogForm.gensetId}
+                  onChange={(e) => setEditLogForm({ ...editLogForm, gensetId: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Generator</option>
+                  {gensets.map((genset) => (
+                    <option key={genset._id} value={genset._id}>
+                      {genset.name} - {genset.venue?.name || 'No Venue'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Action Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Action Type
+                </label>
+                <select
+                  value={editLogForm.action}
+                  onChange={(e) => setEditLogForm({ ...editLogForm, action: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="MANUAL">Manual Entry</option>
+                  <option value="TURN_ON">Turn On</option>
+                  <option value="TURN_OFF">Turn Off</option>
+                  <option value="CREATED">Created</option>
+                  <option value="UPDATED">Updated</option>
+                </select>
+              </div>
+
+              {/* Custom Timestamp */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom Timestamp (Optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editLogForm.customTimestamp}
+                  onChange={(e) => setEditLogForm({ ...editLogForm, customTimestamp: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to use current time
+                </p>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={editLogForm.notes}
+                  onChange={(e) => setEditLogForm({ ...editLogForm, notes: e.target.value })}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter detailed notes about this log entry..."
+                  required
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {editLogForm.notes.length}/500 characters
+                </p>
+              </div>
+
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  disabled={submitting || !editLogForm.gensetId || !editLogForm.notes.trim()}
+                >
+                  {submitting ? 'Updating...' : 'Update Log Entry'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Log Confirmation Modal */}
+      {showDeleteLogModal && deletingLog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Delete Log Entry</h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-yellow-50 p-4 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      Confirm Deletion
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>Are you sure you want to delete this log entry? This action cannot be undone.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-md">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Log Details:</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p><span className="font-medium">Generator:</span> {deletingLog.genset?.name}</p>
+                  <p><span className="font-medium">Action:</span> {deletingLog.action.replace('_', ' ')}</p>
+                  <p><span className="font-medium">Timestamp:</span> {new Date(deletingLog.timestamp).toLocaleString()}</p>
+                  {deletingLog.notes && (
+                    <p><span className="font-medium">Notes:</span> {deletingLog.notes}</p>
+                  )}
+                </div>
+              </div>
+
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteLog}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Deleting...' : 'Delete Log Entry'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
