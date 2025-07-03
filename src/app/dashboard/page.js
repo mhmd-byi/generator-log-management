@@ -34,6 +34,15 @@ export default function DashboardPage() {
   });
   const [loadingFilters, setLoadingFilters] = useState(false);
   
+  // Pagination states
+  const [logPagination, setLogPagination] = useState({
+    page: 1,
+    limit: 25,
+    total: 0,
+    pages: 0
+  });
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -384,8 +393,10 @@ export default function DashboardPage() {
     }
   }, [logFilters]);
 
-  const loadLogs = async () => {
+  const loadLogs = async (page = logPagination.page, resetPagination = false) => {
     try {
+      setLoadingLogs(true);
+      
       // Build query parameters based on filters
       const params = new URLSearchParams();
       Object.entries(logFilters).forEach(([key, value]) => {
@@ -394,14 +405,30 @@ export default function DashboardPage() {
         }
       });
       
-      const response = await fetch(`/api/logs?limit=100&${params.toString()}`);
+      // Add pagination parameters
+      params.append('page', page.toString());
+      params.append('limit', logPagination.limit.toString());
+      
+      const response = await fetch(`/api/logs?${params.toString()}`);
       if (response.ok) {
         const logsData = await response.json();
         setLogs(logsData.logs || []);
+        
+        // Update pagination info
+        if (logsData.pagination) {
+          setLogPagination(prev => ({
+            ...prev,
+            page: logsData.pagination.page,
+            total: logsData.pagination.total,
+            pages: logsData.pagination.pages
+          }));
+        }
       }
     } catch (error) {
       console.error('Error loading logs:', error);
       setError('Failed to load activity logs');
+    } finally {
+      setLoadingLogs(false);
     }
   };
 
@@ -449,11 +476,8 @@ export default function DashboardPage() {
           setUsers(usersData.users || []);
         }
 
-        // Load logs and filter options separately
-        await Promise.all([
-          loadLogs(),
-          loadFilterOptions()
-        ]);
+        // Load filter options (logs will be loaded by useEffect)
+        await loadFilterOptions();
       }
     } catch (error) {
       console.error('Dashboard load error:', error);
@@ -481,7 +505,7 @@ export default function DashboardPage() {
         
         // Refresh logs for admin users to show the new activity
         if (user?.role === 'admin') {
-          loadLogs();
+          loadLogs(logPagination.page);
         }
       } else {
         const errorData = await response.json();
@@ -708,6 +732,15 @@ export default function DashboardPage() {
     }
   };
 
+  // Effect to reload logs when filters change
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      // Reset to page 1 when filters change
+      setLogPagination(prev => ({ ...prev, page: 1 }));
+      loadLogs(1);
+    }
+  }, [logFilters]);
+
   // Filter management functions
   const handleFilterChange = (filterType, value) => {
     setLogFilters(prev => ({
@@ -727,6 +760,54 @@ export default function DashboardPage() {
 
   const hasActiveFilters = () => {
     return Object.values(logFilters).some(value => value !== 'all');
+  };
+
+  // Pagination functions
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= logPagination.pages) {
+      loadLogs(newPage);
+    }
+  };
+
+  const handlePageSizeChange = async (newLimit) => {
+    setLogPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
+    
+    // Build query parameters based on filters
+    const params = new URLSearchParams();
+    Object.entries(logFilters).forEach(([key, value]) => {
+      if (value && value !== 'all') {
+        params.append(key, value);
+      }
+    });
+    
+    // Add pagination parameters with new limit
+    params.append('page', '1');
+    params.append('limit', newLimit.toString());
+    
+    try {
+      setLoadingLogs(true);
+      const response = await fetch(`/api/logs?${params.toString()}`);
+      if (response.ok) {
+        const logsData = await response.json();
+        setLogs(logsData.logs || []);
+        
+        // Update pagination info
+        if (logsData.pagination) {
+          setLogPagination(prev => ({
+            ...prev,
+            page: 1,
+            limit: newLimit,
+            total: logsData.pagination.total,
+            pages: logsData.pagination.pages
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      setError('Failed to load activity logs');
+    } finally {
+      setLoadingLogs(false);
+    }
   };
 
   // Manual log functions
@@ -773,7 +854,7 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        await loadLogs(); // Refresh logs
+        await loadLogs(logPagination.page); // Refresh logs
         closeModal();
         setError(''); // Clear any previous errors
       } else {
@@ -853,7 +934,7 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        await loadLogs(); // Refresh logs
+        await loadLogs(logPagination.page); // Refresh logs
         setShowEditLogModal(false);
         setEditingLog(null);
         setError(''); // Clear any previous errors
@@ -882,7 +963,7 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        await loadLogs(); // Refresh logs
+        await loadLogs(logPagination.page); // Refresh logs
         setShowDeleteLogModal(false);
         setDeletingLog(null);
         setError(''); // Clear any previous errors
@@ -1446,7 +1527,103 @@ export default function DashboardPage() {
                     )}
                   </div>
                   
-                  {logs.length === 0 ? (
+                  {/* Pagination Info and Controls - Top */}
+                  {logPagination.total > 0 && (
+                    <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="text-sm text-gray-700">
+                          Showing {((logPagination.page - 1) * logPagination.limit) + 1} to{' '}
+                          {Math.min(logPagination.page * logPagination.limit, logPagination.total)} of{' '}
+                          {logPagination.total} logs
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm text-gray-700">Show:</label>
+                          <select
+                            value={logPagination.limit}
+                            onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
+                            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            disabled={loadingLogs}
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <span className="text-sm text-gray-700">per page</span>
+                        </div>
+                      </div>
+                      
+                      {logPagination.pages > 1 && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => handlePageChange(1)}
+                            disabled={logPagination.page === 1 || loadingLogs}
+                            className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            First
+                          </button>
+                          <button
+                            onClick={() => handlePageChange(logPagination.page - 1)}
+                            disabled={logPagination.page === 1 || loadingLogs}
+                            className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Previous
+                          </button>
+                          
+                          {/* Page numbers */}
+                          {Array.from({ length: Math.min(5, logPagination.pages) }, (_, i) => {
+                            let pageNum;
+                            if (logPagination.pages <= 5) {
+                              pageNum = i + 1;
+                            } else if (logPagination.page <= 3) {
+                              pageNum = i + 1;
+                            } else if (logPagination.page >= logPagination.pages - 2) {
+                              pageNum = logPagination.pages - 4 + i;
+                            } else {
+                              pageNum = logPagination.page - 2 + i;
+                            }
+                            
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                disabled={loadingLogs}
+                                className={`px-3 py-1 text-sm border rounded ${
+                                  pageNum === logPagination.page
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                          
+                          <button
+                            onClick={() => handlePageChange(logPagination.page + 1)}
+                            disabled={logPagination.page === logPagination.pages || loadingLogs}
+                            className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                          <button
+                            onClick={() => handlePageChange(logPagination.pages)}
+                            disabled={logPagination.page === logPagination.pages || loadingLogs}
+                            className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Last
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {loadingLogs ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-600">Loading logs...</p>
+                    </div>
+                  ) : logs.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-gray-500">
                         {hasActiveFilters() ? 'No activity logs match the selected filters' : 'No activity logs found'}
@@ -1595,6 +1772,75 @@ export default function DashboardPage() {
                           </tbody>
                         </table>
                       </div>
+                      
+                      {/* Pagination Controls - Bottom */}
+                      {logPagination.pages > 1 && (
+                        <div className="bg-white px-4 py-3 border-t flex items-center justify-between">
+                          <div className="text-sm text-gray-700">
+                            Page {logPagination.page} of {logPagination.pages}
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handlePageChange(1)}
+                              disabled={logPagination.page === 1 || loadingLogs}
+                              className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              First
+                            </button>
+                            <button
+                              onClick={() => handlePageChange(logPagination.page - 1)}
+                              disabled={logPagination.page === 1 || loadingLogs}
+                              className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Previous
+                            </button>
+                            
+                            {/* Page numbers */}
+                            {Array.from({ length: Math.min(5, logPagination.pages) }, (_, i) => {
+                              let pageNum;
+                              if (logPagination.pages <= 5) {
+                                pageNum = i + 1;
+                              } else if (logPagination.page <= 3) {
+                                pageNum = i + 1;
+                              } else if (logPagination.page >= logPagination.pages - 2) {
+                                pageNum = logPagination.pages - 4 + i;
+                              } else {
+                                pageNum = logPagination.page - 2 + i;
+                              }
+                              
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => handlePageChange(pageNum)}
+                                  disabled={loadingLogs}
+                                  className={`px-3 py-1 text-sm border rounded ${
+                                    pageNum === logPagination.page
+                                      ? 'bg-blue-500 text-white border-blue-500'
+                                      : 'hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                            
+                            <button
+                              onClick={() => handlePageChange(logPagination.page + 1)}
+                              disabled={logPagination.page === logPagination.pages || loadingLogs}
+                              className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Next
+                            </button>
+                            <button
+                              onClick={() => handlePageChange(logPagination.pages)}
+                              disabled={logPagination.page === logPagination.pages || loadingLogs}
+                              className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Last
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
