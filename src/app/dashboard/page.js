@@ -859,7 +859,10 @@ export default function DashboardPage() {
 
       // Add custom timestamp if provided
       if (customTimestamp) {
-        payload.customTimestamp = customTimestamp;
+        // Convert local datetime to UTC ISO string
+        const localDate = new Date(customTimestamp);
+        const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
+        payload.customTimestamp = utcDate.toISOString();
       }
 
       const response = await fetch('/api/logs', {
@@ -939,7 +942,10 @@ export default function DashboardPage() {
 
       // Add custom timestamp if provided
       if (customTimestamp) {
-        payload.customTimestamp = customTimestamp;
+        // Convert local datetime to UTC ISO string
+        const localDate = new Date(customTimestamp);
+        const utcDate = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
+        payload.customTimestamp = utcDate.toISOString();
       }
 
       const response = await fetch(`/api/logs/${editingLog._id}`, {
@@ -1696,7 +1702,7 @@ export default function DashboardPage() {
                                     {new Date(log.timestamp).toLocaleDateString()}
                                   </div>
                                   <div className="text-xs text-gray-500">
-                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -2728,7 +2734,13 @@ export default function DashboardPage() {
                 <div className="space-y-1 text-sm text-gray-600">
                   <p><span className="font-medium">Generator:</span> {deletingLog.genset?.name}</p>
                   <p><span className="font-medium">Action:</span> {deletingLog.action.replace('_', ' ')}</p>
-                  <p><span className="font-medium">Timestamp:</span> {new Date(deletingLog.timestamp).toLocaleString()}</p>
+                                          <p><span className="font-medium">Timestamp:</span> {new Date(deletingLog.timestamp).toLocaleString([], { 
+                          year: 'numeric', 
+                          month: '2-digit', 
+                          day: '2-digit',
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}</p>
                   {deletingLog.notes && (
                     <p><span className="font-medium">Notes:</span> {deletingLog.notes}</p>
                   )}

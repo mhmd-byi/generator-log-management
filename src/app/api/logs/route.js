@@ -142,6 +142,7 @@ export async function POST(request) {
           { status: 400 }
         );
       }
+      // Store as UTC timestamp
       logData.timestamp = timestampDate;
     }
 

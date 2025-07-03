@@ -74,6 +74,7 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+      // Store as UTC timestamp
       updateData.timestamp = timestampDate;
     }
 
