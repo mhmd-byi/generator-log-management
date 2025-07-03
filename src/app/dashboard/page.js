@@ -1405,7 +1405,7 @@ export default function DashboardPage() {
                             <select
                               value={logFilters.venue}
                               onChange={(e) => handleFilterChange('venue', e.target.value)}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                               disabled={loadingFilters}
                             >
                               <option value="all">All Venues</option>
@@ -1422,7 +1422,7 @@ export default function DashboardPage() {
                           <select
                             value={logFilters.genset}
                             onChange={(e) => handleFilterChange('genset', e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             disabled={loadingFilters}
                           >
                             <option value="all">All Generators</option>
@@ -1442,7 +1442,7 @@ export default function DashboardPage() {
                           <select
                             value={logFilters.user}
                             onChange={(e) => handleFilterChange('user', e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             disabled={loadingFilters}
                           >
                             <option value="all">All Users</option>
@@ -1460,7 +1460,7 @@ export default function DashboardPage() {
                           <select
                             value={logFilters.action}
                             onChange={(e) => handleFilterChange('action', e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             disabled={loadingFilters}
                           >
                             <option value="all">All Actions</option>
@@ -1541,7 +1541,7 @@ export default function DashboardPage() {
                           <select
                             value={logPagination.limit}
                             onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
-                            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                             disabled={loadingLogs}
                           >
                             <option value={10}>10</option>
@@ -1979,11 +1979,11 @@ export default function DashboardPage() {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700">Unit</label>
-                              <select
-                                value={generator.capacityUnit}
-                                onChange={(e) => updateGeneratorForm(index, 'capacityUnit', e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              >
+                                                          <select
+                              value={generator.capacityUnit}
+                              onChange={(e) => updateGeneratorForm(index, 'capacityUnit', e.target.value)}
+                              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
                                 <option value="KW">KW</option>
                                 <option value="MW">MW</option>
                                 <option value="HP">HP</option>
@@ -1996,7 +1996,7 @@ export default function DashboardPage() {
                               required
                               value={generator.venueId}
                               onChange={(e) => updateGeneratorForm(index, 'venueId', e.target.value)}
-                              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="">Select Venue</option>
                               {venues.map((venue) => (
@@ -2070,7 +2070,7 @@ export default function DashboardPage() {
                       <select
                         value={userForm.role}
                         onChange={(e) => setUserForm({...userForm, role: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="user">User</option>
                         <option value="admin">Admin</option>
@@ -2081,7 +2081,7 @@ export default function DashboardPage() {
                       <select
                         value={userForm.assignedVenue}
                         onChange={(e) => setUserForm({...userForm, assignedVenue: e.target.value})}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">No Venue Assignment</option>
                         {venues.map((venue) => (
@@ -2435,7 +2435,7 @@ export default function DashboardPage() {
                 <select
                   value={manualLogForm.gensetId}
                   onChange={(e) => setManualLogForm({ ...manualLogForm, gensetId: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   required
                 >
                   <option value="">Select Generator</option>
@@ -2455,7 +2455,7 @@ export default function DashboardPage() {
                 <select
                   value={manualLogForm.action}
                   onChange={(e) => setManualLogForm({ ...manualLogForm, action: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="MANUAL">Manual Entry</option>
                   <option value="TURN_ON">Turn On</option>
@@ -2474,7 +2474,7 @@ export default function DashboardPage() {
                   type="datetime-local"
                   value={manualLogForm.customTimestamp}
                   onChange={(e) => setManualLogForm({ ...manualLogForm, customTimestamp: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Leave empty to use current time
@@ -2486,15 +2486,15 @@ export default function DashboardPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notes <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  value={manualLogForm.notes}
-                  onChange={(e) => setManualLogForm({ ...manualLogForm, notes: e.target.value })}
-                  rows={4}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter detailed notes about this log entry..."
-                  required
-                  maxLength={500}
-                />
+                                  <textarea
+                    value={manualLogForm.notes}
+                    onChange={(e) => setManualLogForm({ ...manualLogForm, notes: e.target.value })}
+                    rows={4}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter detailed notes about this log entry..."
+                    required
+                    maxLength={500}
+                  />
                 <p className="text-xs text-gray-500 mt-1">
                   {manualLogForm.notes.length}/500 characters
                 </p>
@@ -2554,7 +2554,7 @@ export default function DashboardPage() {
                 <select
                   value={editLogForm.gensetId}
                   onChange={(e) => setEditLogForm({ ...editLogForm, gensetId: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   required
                 >
                   <option value="">Select Generator</option>
@@ -2574,7 +2574,7 @@ export default function DashboardPage() {
                 <select
                   value={editLogForm.action}
                   onChange={(e) => setEditLogForm({ ...editLogForm, action: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="MANUAL">Manual Entry</option>
                   <option value="TURN_ON">Turn On</option>
@@ -2593,7 +2593,7 @@ export default function DashboardPage() {
                   type="datetime-local"
                   value={editLogForm.customTimestamp}
                   onChange={(e) => setEditLogForm({ ...editLogForm, customTimestamp: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Leave empty to use current time
@@ -2605,15 +2605,15 @@ export default function DashboardPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notes <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  value={editLogForm.notes}
-                  onChange={(e) => setEditLogForm({ ...editLogForm, notes: e.target.value })}
-                  rows={4}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter detailed notes about this log entry..."
-                  required
-                  maxLength={500}
-                />
+                                  <textarea
+                    value={editLogForm.notes}
+                    onChange={(e) => setEditLogForm({ ...editLogForm, notes: e.target.value })}
+                    rows={4}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter detailed notes about this log entry..."
+                    required
+                    maxLength={500}
+                  />
                 <p className="text-xs text-gray-500 mt-1">
                   {editLogForm.notes.length}/500 characters
                 </p>

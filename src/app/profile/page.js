@@ -158,21 +158,21 @@ export default function ProfilePage() {
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Profile Information */}
           <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
                   Account Information
                 </h3>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Username</label>
-                    <p className="mt-1 text-sm text-gray-900 font-medium">{profile.username}</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-white font-medium">{profile.username}</p>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <p className="mt-1 text-sm text-gray-900">{profile.email}</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-white">{profile.email}</p>
                   </div>
                   
                   <div>
@@ -206,9 +206,9 @@ export default function ProfilePage() {
 
           {/* Password Change Form */}
           <div className="lg:col-span-2">
-            <div className="bg-white shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
                   Change Password
                 </h3>
                 
@@ -226,7 +226,7 @@ export default function ProfilePage() {
 
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Current Password *
                     </label>
                     <input
@@ -237,13 +237,13 @@ export default function ProfilePage() {
                         ...passwordForm,
                         currentPassword: e.target.value
                       })}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter your current password"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       New Password *
                     </label>
                     <input
@@ -254,14 +254,14 @@ export default function ProfilePage() {
                         ...passwordForm,
                         newPassword: e.target.value
                       })}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter new password (minimum 6 characters)"
                       minLength={6}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Confirm New Password *
                     </label>
                     <input
@@ -272,7 +272,7 @@ export default function ProfilePage() {
                         ...passwordForm,
                         confirmPassword: e.target.value
                       })}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Confirm your new password"
                     />
                   </div>
