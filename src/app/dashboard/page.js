@@ -91,6 +91,7 @@ export default function DashboardPage() {
 
   // Manual log form state
   const [manualLogForm, setManualLogForm] = useState({
+    venueId: '',
     gensetId: '',
     action: 'MANUAL',
     notes: '',
@@ -814,11 +815,27 @@ export default function DashboardPage() {
   const openManualLogModal = () => {
     setShowManualLogModal(true);
     setManualLogForm({
+      venueId: '',
       gensetId: '',
       action: 'MANUAL',
       notes: '',
       customTimestamp: ''
     });
+  };
+
+  // Handle venue change in manual log form
+  const handleManualLogVenueChange = (venueId) => {
+    setManualLogForm(prev => ({
+      ...prev,
+      venueId: venueId,
+      gensetId: '' // Reset generator selection when venue changes
+    }));
+  };
+
+  // Get filtered generators for manual log form
+  const getFilteredGeneratorsForManualLog = () => {
+    if (!manualLogForm.venueId) return [];
+    return gensets.filter(genset => genset.venue?._id === manualLogForm.venueId);
   };
 
   const handleManualLogSubmit = async (e) => {
@@ -827,10 +844,10 @@ export default function DashboardPage() {
     setError('');
 
     try {
-      const { gensetId, action, notes, customTimestamp } = manualLogForm;
+      const { venueId, gensetId, action, notes, customTimestamp } = manualLogForm;
 
-      if (!gensetId || !notes.trim()) {
-        setError('Please select a generator and enter notes.');
+      if (!venueId || !gensetId || !notes.trim()) {
+        setError('Please select a venue, generator, and enter notes.');
         return;
       }
 
@@ -2427,6 +2444,26 @@ export default function DashboardPage() {
             </div>
 
             <form onSubmit={handleManualLogSubmit} className="space-y-4">
+              {/* Venue Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Venue <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={manualLogForm.venueId}
+                  onChange={(e) => handleManualLogVenueChange(e.target.value)}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Venue</option>
+                  {venues.map((venue) => (
+                    <option key={venue._id} value={venue._id}>
+                      {venue.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Generator Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2437,11 +2474,14 @@ export default function DashboardPage() {
                   onChange={(e) => setManualLogForm({ ...manualLogForm, gensetId: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   required
+                  disabled={!manualLogForm.venueId}
                 >
-                  <option value="">Select Generator</option>
-                  {gensets.map((genset) => (
+                  <option value="">
+                    {!manualLogForm.venueId ? 'Select a venue first' : 'Select Generator'}
+                  </option>
+                  {getFilteredGeneratorsForManualLog().map((genset) => (
                     <option key={genset._id} value={genset._id}>
-                      {genset.name} - {genset.venue?.name || 'No Venue'}
+                      {genset.name} ({genset.capacity} {genset.capacityUnit})
                     </option>
                   ))}
                 </select>
