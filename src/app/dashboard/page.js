@@ -1689,6 +1689,11 @@ export default function DashboardPage() {
                                   <div className="text-sm text-gray-500">
                                     {log.genset?.model}
                                   </div>
+                                  {log.genset?.capacity && (
+                                    <div className="text-xs text-blue-600 font-medium">
+                                      {log.genset.capacity} {log.genset.capacityUnit || 'KW'}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="text-sm text-gray-900">{log.venue?.name}</div>

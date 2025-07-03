@@ -96,7 +96,7 @@ export async function PUT(request, { params }) {
       updateData,
       { new: true, runValidators: true }
     ).populate([
-      { path: 'genset', select: 'name model' },
+      { path: 'genset', select: 'name model capacity capacityUnit' },
       { path: 'venue', select: 'name' },
       { path: 'user', select: 'username email' }
     ]);

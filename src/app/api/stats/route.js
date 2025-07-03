@@ -51,7 +51,7 @@ export async function GET(request) {
       : { venue: user.assignedVenue, timestamp: { $gte: thirtyDaysAgo } };
 
     const recentLogs = await Log.find(logQuery)
-      .populate('genset', 'name')
+              .populate('genset', 'name capacity capacityUnit')
       .populate('venue', 'name')
       .sort({ timestamp: 1 });
 

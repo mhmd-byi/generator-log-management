@@ -52,7 +52,7 @@ export async function GET(request) {
     }
 
     const logs = await Log.find(query)
-              .populate('genset', 'name model')
+              .populate('genset', 'name model capacity capacityUnit')
       .populate('venue', 'name')
       .populate('user', 'username email')
       .sort({ timestamp: -1 })
@@ -158,7 +158,7 @@ export async function POST(request) {
     
     // Populate the created log for response
     await log.populate([
-      { path: 'genset', select: 'name model' },
+      { path: 'genset', select: 'name model capacity capacityUnit' },
       { path: 'venue', select: 'name' },
       { path: 'user', select: 'username email' }
     ]);
