@@ -114,6 +114,14 @@ export async function POST(request) {
       );
     }
 
+    // Check if genset has a venue assigned
+    if (!genset.venue) {
+      return NextResponse.json(
+        { error: 'Generator must be assigned to a venue before creating log entries' },
+        { status: 400 }
+      );
+    }
+
     // Admin-only check already performed above, so no additional venue restrictions needed
 
     // Create manual log entry
@@ -127,7 +135,14 @@ export async function POST(request) {
 
     // Add timestamp if provided
     if (customTimestamp) {
-      logData.timestamp = new Date(customTimestamp);
+      const timestampDate = new Date(customTimestamp);
+      if (isNaN(timestampDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid timestamp format' },
+          { status: 400 }
+        );
+      }
+      logData.timestamp = timestampDate;
     }
 
     // For status-related actions, record current status

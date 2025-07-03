@@ -49,6 +49,14 @@ export async function PUT(request, { params }) {
       );
     }
 
+    // Check if genset has a venue assigned
+    if (!genset.venue) {
+      return NextResponse.json(
+        { error: 'Generator must be assigned to a venue before updating log entries' },
+        { status: 400 }
+      );
+    }
+
     // Prepare update data
     const updateData = {
       genset: gensetId,
@@ -59,7 +67,14 @@ export async function PUT(request, { params }) {
 
     // Update timestamp if provided
     if (customTimestamp) {
-      updateData.timestamp = new Date(customTimestamp);
+      const timestampDate = new Date(customTimestamp);
+      if (isNaN(timestampDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid timestamp format' },
+          { status: 400 }
+        );
+      }
+      updateData.timestamp = timestampDate;
     }
 
     // For status-related actions, update status fields
