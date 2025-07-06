@@ -1002,6 +1002,50 @@ export default function DashboardPage() {
     }
   };
 
+  const downloadActivityLogs = async () => {
+    try {
+      // Build query parameters from current filters
+      const params = new URLSearchParams();
+      
+      if (logFilters.venue !== 'all') params.append('venue', logFilters.venue);
+      if (logFilters.genset !== 'all') params.append('genset', logFilters.genset);
+      if (logFilters.user !== 'all') params.append('user', logFilters.user);
+      if (logFilters.action !== 'all') params.append('action', logFilters.action);
+
+      const response = await fetch(`/api/logs/download?${params.toString()}`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download logs');
+      }
+
+      // Get filename from response headers
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'activity_logs.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download logs error:', error);
+      setError('Failed to download activity logs');
+    }
+  };
+
   if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1398,15 +1442,26 @@ export default function DashboardPage() {
                     <h3 className="text-lg font-medium text-gray-900">Activity Logs</h3>
                     <div className="flex items-center space-x-4">
                       {user?.role === 'admin' && (
-                        <button
-                          onClick={openManualLogModal}
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          Add Manual Log
-                        </button>
+                        <>
+                          <button
+                            onClick={downloadActivityLogs}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download Excel
+                          </button>
+                          <button
+                            onClick={openManualLogModal}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add Manual Log
+                          </button>
+                        </>
                       )}
                       <div className="text-sm text-gray-500">
                         {user?.role === 'admin' 
